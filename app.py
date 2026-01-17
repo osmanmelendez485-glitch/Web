@@ -2,36 +2,35 @@ from flask import Flask, render_template, request, redirect, url_for, session
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
+import json
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
-
-import os
-import json
-import firebase_admin
-from firebase_admin import credentials, firestore
-
-# Intentar leer la variable de entorno para producción
+# ==========================================
+# 1. CONFIGURACIÓN DE FIREBASE (CORREGIDA)
+# ==========================================
 firebase_json = os.environ.get('FIREBASE_JSON')
 
 if firebase_json:
-    # Si estamos en Render/Railway, usamos la variable de entorno
+    # Caso: Producción (Render) - Lee desde la Variable de Entorno
     cred_dict = json.loads(firebase_json)
     cred = credentials.Certificate(cred_dict)
 else:
-    # Si estamos en tu PC local, usamos el archivo físico
+    # Caso: Desarrollo Local (Tu PC) - Lee desde el archivo .json
+    # Asegúrate de que este archivo exista en tu carpeta local
     cred = credentials.Certificate("serviceAccountKey.json")
 
-firebase_admin.initialize_app(cred)
+# Inicializar Firebase solo una vez
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
+
 db = firestore.client()
+
+# ==========================================
+# 2. CONFIGURACIÓN DE FLASK
+# ==========================================
 app = Flask(__name__)
 app.secret_key = 'tu_llave_secreta_segura'
-
-# --- CONFIGURACIÓN DE FIREBASE ---
-# Asegúrate de que el archivo JSON de tu cuenta de servicio esté en la carpeta del proyecto
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
-db = firestore.client()
 
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -39,7 +38,9 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# --- RUTAS ---
+# ==========================================
+# 3. RUTAS DE LA APLICACIÓN
+# ==========================================
 
 @app.route('/')
 def login():
@@ -58,14 +59,13 @@ def auth():
 def dashboard():
     if 'user' not in session: return redirect(url_for('login'))
     
-    # En Firestore, el ordenamiento funciona de forma similar
     sort_by = request.args.get('sort', 'fecha')
+    # Ajuste de dirección de ordenamiento para Firestore
     direction = firestore.Query.DESCENDING if 'fecha' in sort_by or 'pago' in sort_by else firestore.Query.ASCENDING
-    
-    field = sort_by.split(' ')[0] # Limpiamos el string del request
+    field = sort_by.split(' ')[0] 
 
     try:
-        # Consulta a la colección 'Empleados'
+        # Consulta a Firestore
         empleados_ref = db.collection('Empleados').order_by(field, direction=direction)
         docs = empleados_ref.stream()
         
@@ -83,22 +83,27 @@ def dashboard():
 def add():
     if 'user' not in session: return redirect(url_for('login'))
     d = request.form
+    cedula = d.get('cedula', '').strip()
+    nombre = d.get('nombre', '').strip()
     
-    # Preparar el diccionario de datos
     nuevo_empleado = {
         'fecha': d.get('fecha'),
-        'nombre': d.get('nombre', '').strip(),
+        'nombre': nombre,
         'apellido': d.get('apellido', ''),
-        'cedula': d.get('cedula', '').strip(),
+        'cedula': cedula,
         'direccion': d.get('direccion', 'N/A'),
         'pago': float(d.get('pago') or 0.0),
         'equipo': float(d.get('equipo') or 0.0),
         'deposito': float(d.get('deposito') or 0.0),
         'sexo': 'M',
+        'escolaridad': 'N/A',
+        'ano_escolaridad': 0,
+        'ciudad': 'Chinandega',
+        'dependientes': 0,
         'contrato': ""
     }
 
-    # Manejo de archivo
+    # Manejo de archivo (contrato)
     file_contrato = request.files.get('contrato')
     if file_contrato and file_contrato.filename != '':
         nom_contrato = secure_filename(file_contrato.filename)
@@ -106,16 +111,13 @@ def add():
         nuevo_empleado['contrato'] = nom_contrato
 
     try:
-        # En Firestore no hay "IntegrityError" por duplicados de la misma forma,
-        # pero podemos buscar si la cédula existe:
-        query = db.collection('Empleados').where('cedula', '==', nuevo_empleado['cedula']).limit(1).get()
+        # Lógica de Upsert (Actualizar si existe la cédula, si no Crear)
+        query = db.collection('Empleados').where('cedula', '==', cedula).limit(1).get()
         
         if query:
-            # UPDATE si existe
             doc_id = query[0].id
             db.collection('Empleados').document(doc_id).update(nuevo_empleado)
         else:
-            # INSERT si no existe
             db.collection('Empleados').add(nuevo_empleado)
             
     except Exception as e:
@@ -127,7 +129,7 @@ def add():
 def update():
     if 'user' not in session: return redirect(url_for('login'))
     d = request.form
-    id_reg = d.get('id') # El ID alfanumérico de Firestore
+    id_reg = d.get('id')
     
     datos_update = {
         'fecha': d.get('fecha'),
@@ -146,10 +148,13 @@ def update():
         return f"Error: {e}"
     return redirect(url_for('dashboard'))
 
-@app.route('/delete/<id>') # Quitamos el 'int:' porque Firestore usa strings
+@app.route('/delete/<id>')
 def delete(id):
     if 'user' not in session: return redirect(url_for('login'))
-    db.collection('Empleados').document(id).delete()
+    try:
+        db.collection('Empleados').document(id).delete()
+    except Exception as e:
+        return f"Error al eliminar: {e}"
     return redirect(url_for('dashboard'))
 
 @app.route('/logout')
@@ -158,4 +163,6 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Puerto dinámico para Render, por defecto 5000 para local
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
