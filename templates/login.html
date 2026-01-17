@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Iniciar Sesión</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; display: flex; align-items: center; height: 100vh; }
+        .login-form { width: 100%; max-width: 330px; margin: auto; }
+    </style>
+</head>
+<body class="text-center">
+    <main class="login-form">
+        <form action="/auth" method="POST">
+<img class="mb-4" src="{{ url_for('static', filename='Logo.png') }}" alt="Logo Empresa" width="120">            
+            <h1 class="h3 mb-3 fw-normal">Acceso al Sistema</h1>
+
+            <div class="form-floating mb-2">
+                <input type="text" name="username" class="form-control" id="user" placeholder="Usuario" required>
+                <label for="user">Usuario</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="password" name="password" class="form-control" id="pass" placeholder="Contraseña" required>
+                <label for="pass">Contraseña</label>
+            </div>
+
+            <button class="w-100 btn btn-lg btn-primary" type="submit">Entrar</button>
+            <p class="mt-5 mb-3 text-muted">&copy; 2026 - Control Interno</p>
+        </form>
+    </main>
+</body>
+</html>

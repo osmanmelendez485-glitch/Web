@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Gestión - Control de Pagos</title>
+    
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='Logo.png') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
+        .table-container { background: white; padding: 25px; border-radius: 12px; border: 1px solid #e0e0e0; }
+        .currency-bold { font-weight: bold; color: #157347; white-space: nowrap; }
+        .badge-count { font-size: 0.9rem; padding: 0.5em 0.8em; }
+        .btn-edit { background-color: #ffc107; border: none; color: #000; }
+        .btn-edit:hover { background-color: #e0a800; }
+        .modal.fade .modal-dialog { transform: translate(0, -50px); transition: transform 0.3s ease-out; }
+        .input-group-text { background-color: #e9ecef; font-weight: bold; color: #495057; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <img src="{{ url_for('static', filename='Logo.png') }}" width="30" class="me-2">
+                Control de Pagos
+            </span>
+            <div class="d-flex align-items-center">
+                <a href="/reporte" class="btn btn-info btn-sm me-3 fw-bold text-white shadow-sm">
+                    📊 Generar Reporte por Zona
+                </a>
+                <a href="/logout" class="btn btn-outline-light btn-sm">Cerrar Sesión</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-header bg-white fw-bold text-uppercase small text-secondary">Registrar Nuevo Pago / Empleado</div>
+            <div class="card-body">
+                <form action="/add" method="POST" enctype="multipart/form-data" class="row g-3">
+                    <div class="col-md-2"><label class="small fw-bold">Fecha</label><input type="date" name="fecha" class="form-control form-control-sm" required></div>
+                    <div class="col-md-2"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" class="form-control form-control-sm" required autocomplete="off"></div>
+                    <div class="col-md-2"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" class="form-control form-control-sm" autocomplete="off"></div>
+                    <div class="col-md-2"><label class="small fw-bold">Cédula</label><input type="text" name="cedula" class="form-control form-control-sm" required autocomplete="off"></div>
+                    
+                    <div class="col-md-2">
+                        <label class="small fw-bold">Dirección</label>
+                        <select name="direccion" class="form-select form-select-sm">
+                            <option value="Chinandega">Chinandega</option>
+                            <option value="Miguel Jarquín">Miguel Jarquín</option>
+                            <option value="Módulo 1">Módulo 1</option>
+                            <option value="Módulo 2">Módulo 2</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="small fw-bold">Equipo</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">C$</span>
+                            <input type="number" step="0.01" min="0" name="equipo" class="form-control" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="small fw-bold">Monto Pago</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">C$</span>
+                            <input type="number" step="0.01" min="0" name="pago" class="form-control" placeholder="0.00">
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-2">
+                        <label class="small fw-bold">No. Depósito</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">C$</span>
+                            <input type="number" step="0.01" name="deposito" class="form-control" placeholder="0.00" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-2">
+                        <label class="small fw-bold">Contrato (PDF)</label>
+                        <input type="file" name="contrato" class="form-control form-control-sm" accept=".pdf">
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold shadow-sm">Guardar Registro</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="table-container shadow-sm">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="m-0 text-dark fw-bold">Listado General</h5>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-dark dropdown-toggle" type="button" data-bs-toggle="dropdown">Ordenar Tabla</button>
+                    <ul class="dropdown-menu shadow">
+                        <li><a class="dropdown-item" href="/dashboard?sort=fecha">Fecha</a></li>
+                        <li><a class="dropdown-item" href="/dashboard?sort=nombre">Nombre</a></li>
+                        <li><a class="dropdown-item" href="/dashboard?sort=pago">Monto</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr class="small text-uppercase text-secondary">
+                            <th>ID</th><th>Fecha</th><th>Empleado</th><th>Equipo</th><th>Dirección</th><th class="text-center">Ingresos</th><th>Monto Pago</th><th>Depósito</th><th>PDF</th><th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emp in empleados %}
+                        <tr>
+                            <td><span class="text-muted">#{{ emp.id }}</span></td>
+                            <td>{{ emp.fecha }}</td>
+                            <td><div class="fw-bold">{{ emp.nombre }} {{ emp.apellido }}</div><small class="text-muted">{{ emp.cedula }}</small></td>
+                            <td class="currency-bold">C$ {{ "{:,.2f}".format(emp.equipo|float) if emp.equipo else "0.00" }}</td>
+                            <td><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">{{ emp.direccion }}</span></td>
+                            <td class="text-center"><span class="badge rounded-pill bg-primary badge-count">{{ emp.veces_ingresado }}</span></td>
+                            <td class="currency-bold">C$ {{ "{:,.2f}".format(emp.pago|float) if emp.pago else "0.00" }}</td>
+                            <td class="currency-bold">C$ {{ "{:,.2f}".format(emp.deposito|float) if emp.deposito else "0.00" }}</td>
+                            <td>
+                                {% if emp.contrato %}
+                                    <a href="{{ url_for('static', filename='uploads/' + emp.contrato) }}" target="_blank" class="btn btn-sm btn-danger px-3 py-1">PDF</a>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-edit fw-bold px-3 shadow-sm" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#modalEditar"
+                                            data-id="{{ emp.id }}"
+                                            data-fecha="{{ emp.fecha }}"
+                                            data-nombre="{{ emp.nombre }}"
+                                            data-apellido="{{ emp.apellido }}"
+                                            data-cedula="{{ emp.cedula }}"
+                                            data-direccion="{{ emp.direccion }}"
+                                            data-equipo="{{ emp.equipo }}"
+                                            data-pago="{{ emp.pago }}"
+                                            data-deposito="{{ emp.deposito }}">
+                                        Editar
+                                    </button>
+                                    <a href="/delete/{{ emp.id }}" class="btn btn-sm btn-link text-danger text-decoration-none" onclick="return confirm('¿Eliminar?')">Eliminar</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <form action="/update" method="POST" class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">Actualizar Registro #<span id="span-id"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body row g-3">
+                    <input type="hidden" name="id" id="edit-id">
+                    <div class="col-md-4"><label class="fw-bold small">Fecha</label><input type="date" name="fecha" id="edit-fecha" class="form-control" required></div>
+                    <div class="col-md-4"><label class="fw-bold small">Nombre</label><input type="text" name="nombre" id="edit-nombre" class="form-control" required></div>
+                    <div class="col-md-4"><label class="fw-bold small">Apellido</label><input type="text" name="apellido" id="edit-apellido" class="form-control"></div>
+                    <div class="col-md-4"><label class="fw-bold small">Cédula</label><input type="text" name="cedula" id="edit-cedula" class="form-control" required></div>
+                    <div class="col-md-4">
+                        <label class="fw-bold small">Dirección</label>
+                        <select name="direccion" id="edit-direccion" class="form-select">
+                            <option value="Chinandega">Chinandega</option>
+                            <option value="Miguel Jarquín">Miguel Jarquín</option>
+                            <option value="Módulo 1">Módulo 1</option>
+                            <option value="Módulo 2">Módulo 2</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="fw-bold small">Equipo</label>
+                        <div class="input-group">
+                            <span class="input-group-text">C$</span>
+                            <input type="number" step="0.01" min="0" name="equipo" id="edit-equipo" class="form-control">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="fw-bold small">Monto Pago</label>
+                        <div class="input-group">
+                            <span class="input-group-text">C$</span>
+                            <input type="number" step="0.01" min="0" name="pago" id="edit-pago" class="form-control">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="fw-bold small">No. Depósito</label>
+                        <div class="input-group">
+                            <span class="input-group-text">C$</span>
+                            <input type="number" step="0.01" name="deposito" id="edit-deposito" class="form-control" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="submit" class="btn btn-success fw-bold">Actualizar Datos</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const modalEditar = document.getElementById('modalEditar');
+        modalEditar.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget;
+            document.getElementById('edit-id').value = button.getAttribute('data-id');
+            document.getElementById('span-id').textContent = button.getAttribute('data-id');
+            document.getElementById('edit-nombre').value = button.getAttribute('data-nombre');
+            document.getElementById('edit-apellido').value = button.getAttribute('data-apellido');
+            document.getElementById('edit-cedula').value = button.getAttribute('data-cedula');
+            document.getElementById('edit-direccion').value = button.getAttribute('data-direccion');
+            document.getElementById('edit-equipo').value = button.getAttribute('data-equipo');
+            document.getElementById('edit-pago').value = button.getAttribute('data-pago');
+            document.getElementById('edit-deposito').value = button.getAttribute('data-deposito');
+
+            let fechaRaw = button.getAttribute('data-fecha'); 
+            if(fechaRaw && fechaRaw.includes(" ")) fechaRaw = fechaRaw.split(" ")[0];
+            document.getElementById('edit-fecha').value = fechaRaw;
+        });
+    </script>
+</body>
+</html>
