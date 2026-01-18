@@ -162,6 +162,47 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
+
+@app.route('/reporte', methods=['GET', 'POST'])
+def reporte():
+    if 'user' not in session: return redirect(url_for('login'))
+    
+    # Opciones para los menús desplegables
+    direcciones = ["Chinandega", "Miguel Jarquín", "Módulo 1", "Módulo 2"]
+    anios = [2024, 2025, 2026]
+    
+    empleados = []
+    totales = {'pago': 0.0, 'equipo': 0.0, 'deposito': 0.0}
+    seleccionada = request.form.get('direccion')
+    anio_sel = request.form.get('anio')
+
+    if request.method == 'POST' and seleccionada and anio_sel:
+        try:
+            # Consulta a Firestore filtrando por dirección
+            docs = db.collection('Empleados').where('direccion', '==', seleccionada).stream()
+            
+            for doc in docs:
+                emp = doc.to_dict()
+                # Filtrar por año (asumiendo que 'fecha' es string "YYYY-MM-DD")
+                fecha_str = emp.get('fecha', '')
+                if fecha_str.startswith(anio_sel):
+                    empleados.append(emp)
+                    # Sumar totales
+                    totales['pago'] += float(emp.get('pago') or 0)
+                    totales['equipo'] += float(emp.get('equipo') or 0)
+                    totales['deposito'] += float(emp.get('deposito') or 0)
+                    
+        except Exception as e:
+            print(f"Error en reporte: {e}")
+
+    return render_template('reporte.html', 
+                           direcciones=direcciones, 
+                           anios=anios, 
+                           empleados=empleados, 
+                           totales=totales, 
+                           seleccionada=seleccionada, 
+                           anio_sel=anio_sel)
+
 if __name__ == '__main__':
     # Puerto dinámico para Render, por defecto 5000 para local
     port = int(os.environ.get("PORT", 5000))
