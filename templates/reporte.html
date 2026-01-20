@@ -85,7 +85,7 @@
         {% if empleados or request.method == 'POST' %}
         <div class="text-center mb-4 d-none d-print-block">
             <h3>REPORTE DE PAGOS Y CONTRATOS</h3>
-            <p>Zona: {{ seleccionada or 'Todas' }} | Año: {{ anio_sel or 'Todos' }}</p>
+            <p>Zona: {{ seleccionada or 'Todas' }} | Año: {{ anio_sel or 'Todos' }} | Contrato: {{ contrato_sel or 'Todos' }}</p>
             <hr>
         </div>
 
@@ -121,7 +121,7 @@
                         <tr>
                             <th>Fecha</th>
                             <th>Contrato</th>
-                            <th>Empleado</th>
+                            <th>Cliente / Empleado</th>
                             <th class="text-end">Internet</th>
                             <th class="text-end">Pago</th>
                             <th class="text-end">Equipo</th>
@@ -135,9 +135,9 @@
                             <td class="fw-bold">{{ emp.num_contrato or 'N/A' }}</td>
                             <td>{{ emp.nombre }} {{ emp.apellido }}</td>
                             <td class="text-end text-info">C$ {{ "{:,.2f}".format(emp.internet|float) if emp.internet else "0.00" }}</td>
-                            <td class="text-end text-success">C$ {{ "{:,.2f}".format(emp.pago|float) }}</td>
-                            <td class="text-end text-primary">C$ {{ "{:,.2f}".format(emp.equipo|float) }}</td>
-                            <td class="text-end fw-bold">C$ {{ "{:,.2f}".format(emp.deposito|float) }}</td>
+                            <td class="text-end text-success">C$ {{ "{:,.2f}".format(emp.pago|float) if emp.pago else "0.00" }}</td>
+                            <td class="text-end text-primary">C$ {{ "{:,.2f}".format(emp.equipo|float) if emp.equipo else "0.00" }}</td>
+                            <td class="text-end fw-bold">C$ {{ "{:,.2f}".format(emp.deposito|float) if emp.deposito else "0.00" }}</td>
                         </tr>
                         {% else %}
                         <tr>
