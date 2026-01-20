@@ -3,152 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte de Totales - C$</title>
+    <title>Reporte de Pagos - Impresión</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        body { background-color: #f8f9fa; }
-        .resumen-card { 
-            background: white; 
-            border-left: 5px solid #0d6efd; 
-            border-radius: 8px;
-        }
-        .monto-total { 
-            font-size: 1.4rem; 
-            font-weight: bold; 
-            color: #157347; 
-        }
-        .label-total {
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            color: #6c757d;
-            font-weight: bold;
-        }
-        
-        /* Estilos de Impresión */
+        body { background-color: #f4f7f6; }
         @media print {
-            .no-print, .navbar, .card-body form, .btn {
-                display: none !important;
-            }
-            body { background-color: white !important; }
-            .container { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
-            .shadow-sm { box-shadow: none !important; border: 1px solid #eee !important; }
-            .resumen-card { border: 1px solid #ddd !important; margin-bottom: 20px !important; }
-            .table { font-size: 12px; }
+            .no-print { display: none !important; }
+            body { background-color: white !important; padding: 0; }
+            .container { width: 100% !important; max-width: none !important; margin: 0; box-shadow: none !important; border: none !important; }
+            .table { font-size: 9pt; }
+            .card { border: 1px solid #333 !important; }
         }
+        .header-report { border-bottom: 2px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
+        .filter-section { background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6; }
+        
+        .table thead th { 
+            background-color: #f8f9fa !important; 
+            color: #000 !important; 
+            vertical-align: middle;
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-bottom: 2px solid #333;
+        }
+        .total-row { background-color: #e9ecef !important; font-weight: bold; }
+        .badge-status { font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; }
     </style>
 </head>
-<body>
-    <nav class="navbar navbar-dark bg-dark px-4 mb-4 no-print">
-        <span class="navbar-brand">Reporte de Pagos por Año y Dirección</span>
-        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">Volver al Panel</a>
-    </nav>
-
-    <div class="container">
-        <div class="card shadow-sm mb-4 no-print">
-            <div class="card-body">
-                <form action="/reporte" method="POST" class="row align-items-end g-3">
-                    <div class="col-md-3">
-                        <label class="form-label fw-bold small">Dirección / Zona:</label>
-                        <select name="direccion" class="form-select form-select-sm">
-                            <option value="">-- Todas --</option>
-                            {% for dir in direcciones %}
-                            <option value="{{ dir }}" {% if seleccionada == dir %}selected{% endif %}>{{ dir }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label fw-bold small">Año:</label>
-                        <select name="anio" class="form-select form-select-sm">
-                            <option value="">-- Todos --</option>
-                            {% for a in anios %}
-                            <option value="{{ a }}" {% if anio_sel == a|string %}selected{% endif %}>{{ a }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label fw-bold small">No. Contrato:</label>
-                        <input type="text" name="num_contrato" class="form-control form-control-sm" placeholder="Buscar contrato..." value="{{ contrato_sel or '' }}">
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold">Filtrar</button>
-                            <button type="button" onclick="window.print()" class="btn btn-success btn-sm w-100 fw-bold">
-                                <i class="bi bi-printer"></i> Imprimir
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        {% if empleados or request.method == 'POST' %}
-        <div class="text-center mb-4 d-none d-print-block">
-            <h3>REPORTE DE PAGOS Y CONTRATOS</h3>
-            <p>Zona: {{ seleccionada or 'Todas' }} | Año: {{ anio_sel or 'Todos' }} | Contrato: {{ contrato_sel or 'Todos' }}</p>
-            <hr>
-        </div>
-
-        <div class="resumen-card shadow-sm p-4 mb-4">
-            <div class="row text-center">
-                <div class="col-md-3 border-end">
-                    <div class="label-total">Total Internet</div>
-                    <div class="monto-total text-info">C$ {{ "{:,.2f}".format(totales.internet) }}</div>
-                </div>
-                <div class="col-md-3 border-end">
-                    <div class="label-total">Total Pagos</div>
-                    <div class="monto-total text-success">C$ {{ "{:,.2f}".format(totales.pago) }}</div>
-                </div>
-                <div class="col-md-3 border-end">
-                    <div class="label-total">Total Equipo</div>
-                    <div class="monto-total text-primary">C$ {{ "{:,.2f}".format(totales.equipo) }}</div>
+<body class="bg-light p-4">
+    <div class="container bg-white p-5 shadow-sm border">
+        
+        <div class="no-print filter-section p-4 mb-4 shadow-sm">
+            <h5 class="mb-3 text-uppercase fw-bold text-primary" style="letter-spacing: 1px;">
+                <i class="bi bi-funnel-fill"></i> Filtros de Reporte
+            </h5>
+            <form method="POST" action="{{ url_for('reporte') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold small">Dirección</label>
+                    <select name="direccion" class="form-select form-select-sm">
+                        <option value="">Todas las Direcciones</option>
+                        {% for dir in direcciones %}
+                        <option value="{{ dir }}" {% if seleccionada == dir %}selected{% endif %}>{{ dir }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div class="col-md-3">
-                    <div class="label-total">Total Depósitos</div>
-                    <div class="monto-total text-dark">C$ {{ "{:,.2f}".format(totales.deposito) }}</div>
+                    <label class="form-label fw-bold small">Número de Contrato</label>
+                    <input type="text" name="num_contrato" class="form-control form-control-sm" placeholder="Buscar contrato..." value="{{ contrato_sel }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold small">Estado de Pago</label>
+                    <select name="estado" class="form-select form-select-sm">
+                        <option value="">Todos los Estados</option>
+                        <option value="Cancelado" {% if estado_sel == 'Cancelado' %}selected{% endif %}>✅ Solo Cancelados</option>
+                        <option value="Pendiente" {% if estado_sel == 'Pendiente' %}selected{% endif %}>⏳ Solo Pendientes</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-dark btn-sm w-100 text-uppercase fw-bold">Filtrar</button>
+                    <a href="{{ url_for('reporte') }}" class="btn btn-outline-secondary btn-sm w-100 text-uppercase fw-bold">Limpiar</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="header-report d-flex justify-content-between align-items-start">
+            <div>
+                <h1 class="text-uppercase fw-bold m-0" style="color: #1a1a1a;">Reporte General de Pagos</h1>
+                <p class="text-muted small mt-1">
+                    <i class="bi bi-calendar3"></i> Generado el: <strong>{{ now.strftime('%d/%m/%Y %H:%M') }}</strong>
+                    {% if seleccionada %} | <i class="bi bi-geo-alt"></i> <strong>Sede:</strong> {{ seleccionada }}{% endif %}
+                    {% if estado_sel %} | <i class="bi bi-check-circle"></i> <strong>Estado:</strong> {{ estado_sel }}{% endif %}
+                </p>
+            </div>
+            <div class="no-print d-flex gap-2">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary d-flex align-items-center">
+                    <i class="bi bi-arrow-left me-2"></i> Volver al Inicio
+                </a>
+                <button onclick="window.print()" class="btn btn-primary d-flex align-items-center shadow-sm">
+                    <i class="bi bi-printer me-2"></i> Imprimir Reporte
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered mt-4">
+                <thead>
+                    <tr>
+                        <th style="width: 10%;">FECHA</th>
+                        <th style="width: 20%;">EMPLEADO / CÉDULA</th>
+                        <th style="width: 15%;">CONTRATO / ZONA</th>
+                        <th style="width: 10%;">INTERNET</th>
+                        <th style="width: 8%;">AGUA</th>
+                        <th style="width: 8%;">LUZ</th>
+                        <th style="width: 10%;">TOTAL PAGADO</th>
+                        <th style="width: 9%;">ESTADO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in empleados %}
+                    <tr class="align-middle text-center">
+                        <td class="small">{{ emp.fecha }}</td>
+                        <td class="text-start">
+                            <span class="fw-bold">{{ emp.nombre }} {{ emp.apellido }}</span><br>
+                            <small class="text-secondary">{{ emp.cedula }}</small>
+                        </td>
+                        <td class="text-start">
+                            <span class="fw-bold text-primary">#{{ emp.num_contrato or 'N/A' }}</span><br>
+                            <small class="text-secondary">{{ emp.direccion }}</small>
+                        </td>
+                        <td>C$ {{ "{:,.2f}".format(emp.internet | default(0) | float) }}</td>
+                        <td>C$ {{ "{:,.2f}".format(emp.agua | default(0) | float) }}</td>
+                        <td>C$ {{ "{:,.2f}".format(emp.luz | default(0) | float) }}</td>
+                        <td class="fw-bold">C$ {{ "{:,.2f}".format(emp.pago | default(0) | float) }}</td>
+                        <td>
+                            {% if emp.estado == 'Cancelado' %}
+                                <span class="badge-status bg-light text-success">CANCELADO</span>
+                            {% else %}
+                                <span class="badge-status bg-light text-danger">PENDIENTE</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-exclamation-circle fs-3 d-block mb-2"></i>
+                            No hay registros que coincidan con los filtros seleccionados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-dark">
+                    <tr class="text-center align-middle" style="border-top: 3px solid #000;">
+                        <td colspan="3" class="text-end fw-bold py-3 text-uppercase">Totales de Cobranza:</td>
+                        <td class="fw-bold">C$ {{ "{:,.2f}".format(totales.internet | default(0) | float) }}</td>
+                        <td class="fw-bold">C$ {{ "{:,.2f}".format(totales.agua | default(0) | float) }}</td>
+                        <td class="fw-bold">C$ {{ "{:,.2f}".format(totales.luz | default(0) | float) }}</td>
+                        <td colspan="2" class="fw-bold text-success text-center" style="font-size: 1.1rem;">
+                            C$ {{ "{:,.2f}".format(totales.pago | default(0) | float) }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="row mt-4 align-items-center">
+            <div class="col-md-7">
+                <div class="p-3 border rounded bg-light small no-print">
+                    <h6 class="fw-bold text-uppercase"><i class="bi bi-info-circle"></i> Resumen de Reporte</h6>
+                    <p class="m-0 text-muted">Este documento detalla los ingresos por servicios de Internet, Agua y Luz. El total reflejado corresponde a los pagos registrados bajo los filtros aplicados.</p>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="card p-4 bg-dark text-white border-0 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-uppercase small fw-bold" style="letter-spacing: 1px;">Gran Total Cobrado:</span>
+                        <span class="badge bg-primary">FINAL</span>
+                    </div>
+                    <h2 class="text-primary text-end fw-bold mb-0">
+                        C$ {{ "{:,.2f}".format(totales.pago | default(0) | float) }}
+                    </h2>
+                    <hr class="my-2 opacity-25">
+                    <p class="small text-muted text-end m-0">Moneda: Córdoba Nicaragüense (C$)</p>
                 </div>
             </div>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
-                <span>Detalle de Registros</span>
-                <small class="text-muted">{{ empleados|length }} encontrados</small>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Contrato</th>
-                            <th>Cliente / Empleado</th>
-                            <th class="text-end">Internet</th>
-                            <th class="text-end">Pago</th>
-                            <th class="text-end">Equipo</th>
-                            <th class="text-end">Depósito</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for emp in empleados %}
-                        <tr>
-                            <td>{{ emp.fecha }}</td>
-                            <td class="fw-bold">{{ emp.num_contrato or 'N/A' }}</td>
-                            <td>{{ emp.nombre }} {{ emp.apellido }}</td>
-                            <td class="text-end text-info">C$ {{ "{:,.2f}".format(emp.internet|float) if emp.internet else "0.00" }}</td>
-                            <td class="text-end text-success">C$ {{ "{:,.2f}".format(emp.pago|float) if emp.pago else "0.00" }}</td>
-                            <td class="text-end text-primary">C$ {{ "{:,.2f}".format(emp.equipo|float) if emp.equipo else "0.00" }}</td>
-                            <td class="text-end fw-bold">C$ {{ "{:,.2f}".format(emp.deposito|float) if emp.deposito else "0.00" }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="7" class="text-center py-4 text-muted">No se encontraron resultados con estos filtros.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <div class="mt-5 pt-5 d-none d-print-block">
+            <div class="row text-center">
+                <div class="col-4">
+                    <hr class="mx-auto" style="width: 80%; border-top: 1px solid black;">
+                    <p class="small fw-bold">Elaborado por</p>
+                </div>
+                <div class="col-4"></div>
+                <div class="col-4">
+                    <hr class="mx-auto" style="width: 80%; border-top: 1px solid black;">
+                    <p class="small fw-bold">Recibido (Firma y Sello)</p>
+                </div>
             </div>
         </div>
-        {% endif %}
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

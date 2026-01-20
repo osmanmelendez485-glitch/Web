@@ -12,15 +12,16 @@
         body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
         .table-container { background: white; padding: 25px; border-radius: 12px; border: 1px solid #e0e0e0; }
         .currency-bold { font-weight: bold; color: #157347; white-space: nowrap; }
-        .input-group-text { background-color: #e9ecef; font-weight: bold; color: #495057; }
         .row-selected { background-color: #fff9e6 !important; }
         #btnEliminarMasivo { display: none; }
         .btn-edit { background-color: #ffc107; border: none; color: #000; }
-        .btn-edit:hover { background-color: #e0a800; }
-        /* Estilos para datos agrupados */
         .info-main { display: block; font-weight: bold; color: #212529; }
         .info-sub { display: block; font-size: 0.82rem; color: #6c757d; }
-        .table th, .table td { white-space: nowrap; }
+        .badge-cancelado { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; font-weight: 600; }
+        .badge-pendiente { background-color: #ffeded; color: #dc3545; border: 1px solid #dc3545; font-weight: 600; }
+        .card-stats { transition: transform 0.2s; border: none; }
+        .card-stats:hover { transform: translateY(-5px); }
+        .uppercase { text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -29,7 +30,7 @@
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">
                 <img src="{{ url_for('static', filename='Logo.png') }}" width="30" class="me-2">
-                Control de Pagos
+                Control de Pagos y Contratos
             </span>
             <div class="d-flex align-items-center">
                 <a href="/reporte" class="btn btn-info btn-sm me-3 fw-bold text-white shadow-sm">
@@ -41,20 +42,30 @@
     </nav>
 
     <div class="container-fluid px-4">
-        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
         <div class="row">
             <div class="col-lg-9">
                 <div class="card mb-4 border-0 shadow-sm">
-                    <div class="card-header bg-white fw-bold text-uppercase small text-secondary">Registrar Nuevo Pago / Contrato</div>
+                    <div class="card-header bg-white fw-bold text-uppercase small text-secondary">Registrar Contrato y Servicios</div>
                     <div class="card-body">
                         <form action="/add" method="POST" enctype="multipart/form-data" class="row g-3">
-                            <div class="col-md-2"><label class="small fw-bold">Fecha</label><input type="date" name="fecha" class="form-control form-control-sm" required></div>
-                            <div class="col-md-2"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" class="form-control form-control-sm" required autocomplete="off"></div>
-                            <div class="col-md-2"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" class="form-control form-control-sm" autocomplete="off"></div>
-                            <div class="col-md-2"><label class="small fw-bold">Cédula</label><input type="text" name="cedula" class="form-control form-control-sm" required autocomplete="off"></div>
-                            <div class="col-md-2"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" class="form-control form-control-sm" placeholder="Ej: CT-001"></div>
+                            <div class="col-md-2"><label class="small fw-bold">Fecha Registro</label><input type="date" name="fecha" class="form-control form-control-sm" required value="{{ now.strftime('%Y-%m-%d') }}"></div>
+                            <div class="col-md-2"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" class="form-control form-control-sm" required></div>
+                            <div class="col-md-2"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" class="form-control form-control-sm"></div>
+                            <div class="col-md-2"><label class="small fw-bold">Cédula</label><input type="text" name="cedula" class="form-control form-control-sm" required></div>
+                            <div class="col-md-2"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" class="form-control form-control-sm"></div>
                             <div class="col-md-2">
-                                <label class="small fw-bold">Dirección</label>
+                                <label class="small fw-bold">Dirección/Zona</label>
                                 <select name="direccion" class="form-select form-select-sm">
                                     <option value="Chinandega">Chinandega</option>
                                     <option value="Miguel Jarquín">Miguel Jarquín</option>
@@ -63,98 +74,110 @@
                                     <option value="Invercasa SAFI">Invercasa SAFI</option>
                                 </select>
                             </div>
+                            <div class="col-md-2"><label class="small fw-bold text-primary">Inicio Contrato</label><input type="date" name="fecha_inicio" class="form-control form-control-sm"></div>
+                            <div class="col-md-2"><label class="small fw-bold text-primary">Fin Contrato</label><input type="date" name="fecha_fin" class="form-control form-control-sm"></div>
                             <div class="col-md-2">
-                                <label class="small fw-bold">Internet</label>
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text">C$</span>
-                                    <input type="number" step="0.01" name="internet" class="form-control">
-                                </div>
+                                <label class="small fw-bold">Estado de Pago</label>
+                                <select name="estado" class="form-select form-select-sm fw-bold border-primary">
+                                    <option value="Pendiente" selected>⏳ Pendiente</option>
+                                    <option value="Cancelado">✅ Cancelado</option>
+                                </select>
                             </div>
-                            <div class="col-md-2">
-                                <label class="small fw-bold">Monto Pago</label>
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text">C$</span>
-                                    <input type="number" step="0.01" name="pago" class="form-control">
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="small fw-bold">Equipo</label>
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text">C$</span>
-                                    <input type="number" step="0.01" name="equipo" class="form-control">
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="small fw-bold">Depósito</label>
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text">C$</span>
-                                    <input type="number" step="0.01" name="deposito" class="form-control">
-                                </div>
-                            </div>
-                            <div class="col-md-2"><label class="small fw-bold">Documento</label><input type="file" name="contrato" class="form-control form-control-sm"></div>
-                            <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-primary btn-sm w-100 fw-bold shadow-sm">Guardar</button></div>
+                            <div class="col-md-1"><label class="small fw-bold">Internet</label><input type="number" step="0.01" name="internet" class="form-control form-control-sm" placeholder="0.00"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Agua</label><input type="number" step="0.01" name="agua" class="form-control form-control-sm" placeholder="0.00"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Luz</label><input type="number" step="0.01" name="luz" class="form-control form-control-sm" placeholder="0.00"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Pago Total</label><input type="number" step="0.01" name="pago" class="form-control form-control-sm" placeholder="0.00"></div>
+                            <div class="col-md-2"><label class="small fw-bold">Documento</label><input type="file" name="comprobante" class="form-control form-control-sm"></div>
+                            <div class="col-md-1 d-flex align-items-end"><button type="submit" class="btn btn-primary btn-sm w-100 fw-bold">Guardar</button></div>
                         </form>
                     </div>
                 </div>
             </div>
 
             <div class="col-lg-3">
-                <div class="card mb-4 border-0 shadow-sm h-100">
-                    <div class="card-header bg-success text-white fw-bold text-uppercase small">Carga Masiva (Excel)</div>
-                    <div class="card-body d-flex flex-column justify-content-center text-center">
+                <div class="card mb-4 border-0 shadow-sm h-100 text-center">
+                    <div class="card-header bg-success text-white fw-bold small">CARGA MASIVA</div>
+                    <div class="card-body">
+                        <i class="bi bi-file-earmark-excel text-success fs-2"></i>
                         <form action="/upload_masivo" method="POST" enctype="multipart/form-data">
-                            <i class="bi bi-file-earmark-excel text-success fs-1 mb-2"></i>
-                            <input type="file" name="archivo" class="form-control form-control-sm mb-2" accept=".xlsx, .csv" required>
-                            <button type="submit" class="btn btn-success btn-sm w-100 fw-bold shadow-sm">Procesar Archivo</button>
+                            <input type="file" name="archivo" class="form-control form-control-sm my-2" required accept=".xlsx, .xls">
+                            <button class="btn btn-success btn-sm w-100 fw-bold">Subir Excel</button>
                         </form>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <form action="/dashboard" method="GET" class="d-flex gap-2">
-                    <div class="input-group shadow-sm">
-                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" name="search" class="form-control border-start-0" placeholder="Buscar por nombre, cédula o contrato..." value="{{ search_query or '' }}">
-                        <button type="submit" class="btn btn-primary fw-bold">Buscar</button>
-                        {% if search_query %}
-                            <a href="/dashboard" class="btn btn-outline-secondary">Limpiar</a>
-                        {% endif %}
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card card-stats shadow-sm bg-white">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="bg-success-subtle p-3 rounded-3 me-3"><i class="bi bi-cash-stack text-success fs-3"></i></div>
+                        <div>
+                            <h6 class="text-muted small fw-bold mb-1 uppercase">Recaudado</h6>
+                            <h4 class="mb-0 fw-bold text-success">C$ {{ "{:,.2f}".format(total_recaudado|default(0)) }}</h4>
+                        </div>
                     </div>
-                </form>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-stats shadow-sm bg-white">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="bg-danger-subtle p-3 rounded-3 me-3"><i class="bi bi-clock-history text-danger fs-3"></i></div>
+                        <div>
+                            <h6 class="text-muted small fw-bold mb-1 uppercase">Pendiente</h6>
+                            <h4 class="mb-0 fw-bold text-danger">C$ {{ "{:,.2f}".format(total_pendiente|default(0)) }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-stats shadow-sm bg-primary text-white">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="bg-white bg-opacity-25 p-3 rounded-3 me-3"><i class="bi bi-wallet2 text-white fs-3"></i></div>
+                        <div>
+                            <h6 class="small fw-bold mb-1 uppercase opacity-75">Cartera Total</h6>
+                            <h4 class="mb-0 fw-bold">C$ {{ "{:,.2f}".format((total_recaudado|default(0)) + (total_pendiente|default(0))) }}</h4>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="table-container shadow-sm mt-2">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div class="d-flex align-items-center gap-3">
-                    <h5 class="m-0 text-dark fw-bold">Listado General de Pagos</h5>
-                    <button id="btnEliminarMasivo" onclick="eliminarSeleccionados()" class="btn btn-sm btn-danger fw-bold shadow-sm px-3">
-                        <i class="bi bi-trash3-fill me-1"></i> Eliminar (<span id="countSelected">0</span>)
-                    </button>
+        <div class="table-container shadow-sm">
+            <div class="row mb-4 align-items-center">
+                <div class="col-md-3"><h5 class="m-0 fw-bold text-dark"><i class="bi bi-list-check text-primary"></i> Contratos</h5></div>
+                <div class="col-md-9">
+                    <form action="/dashboard" method="GET" class="row g-2 justify-content-end">
+                        <div class="col-md-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                                <input type="text" name="search" class="form-control" placeholder="Buscar por Nombre, Cédula o Contrato..." value="{{ search_query }}">
+                                <button class="btn btn-primary" type="submit">Buscar</button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
-                <div class="d-flex gap-2">
-                    <a href="/exportar_excel" class="btn btn-sm btn-success fw-bold shadow-sm px-3">
-                        <i class="bi bi-file-earmark-excel-fill me-1"></i> Descargar Excel
-                    </a>
-                </div>
+            </div>
+
+            <div class="d-flex justify-content-between mb-3">
+                <button id="btnEliminarMasivo" onclick="eliminarSeleccionados()" class="btn btn-sm btn-danger fw-bold shadow-sm">
+                    <i class="bi bi-trash3-fill"></i> Eliminar Seleccionados (<span id="countSelected">0</span>)
+                </button>
+                <a href="/exportar_excel" class="btn btn-sm btn-success fw-bold shadow-sm"><i class="bi bi-file-excel"></i> Exportar a Excel</a>
             </div>
 
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
-                    <thead class="table-light">
-                        <tr class="small text-uppercase text-secondary">
-                            <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="checkAll" onclick="toggleAll(this)"></th>
-                            <th>Fecha</th>
-                            <th>Empleado / Cédula</th>
-                            <th>Contrato / Dirección</th>
-                            <th>Internet</th>
-                            <th>Pago</th>
-                            <th>Equipo</th>
-                            <th>Depósito</th>
-                            <th>Doc</th>
+                    <thead class="table-light small text-uppercase">
+                        <tr>
+                            <th><input type="checkbox" id="checkAll" onclick="toggleAll(this)" class="form-check-input"></th>
+                            <th>Fecha Reg.</th> <th>Empleado</th>
+                            <th>Contrato / Zona</th>
+                            <th>Vigencia</th>
+                            <th>Internet / Total</th>
+                            <th>Agua / Luz</th>
+                            <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -162,37 +185,49 @@
                         {% for emp in empleados %}
                         <tr>
                             <td><input type="checkbox" class="form-check-input select-item" value="{{ emp.id }}" onclick="updateUI()"></td>
-                            <td class="small">{{ emp.fecha }}</td>
-                            <td>
+                            <td class="small fw-bold text-muted">{{ emp.fecha }}</td> <td>
                                 <span class="info-main">{{ emp.nombre }} {{ emp.apellido }}</span>
-                                <span class="info-sub"><i class="bi bi-card-text me-1"></i>{{ emp.cedula }}</span>
+                                <span class="info-sub text-muted">{{ emp.cedula }}</span>
                             </td>
                             <td>
                                 <span class="info-main text-primary">№ {{ emp.num_contrato or 'S/N' }}</span>
-                                <span class="info-sub text-muted"><i class="bi bi-geo-alt me-1"></i>{{ emp.direccion }}</span>
+                                <span class="info-sub">{{ emp.direccion }}</span>
                             </td>
-                            <td class="currency-bold text-info">C$ {{ "{:,.2f}".format(emp.internet|float) if emp.internet else "0.00" }}</td>
-                            <td class="currency-bold">C$ {{ "{:,.2f}".format(emp.pago|float) if emp.pago else "0.00" }}</td>
-                            <td class="text-muted small">C$ {{ "{:,.2f}".format(emp.equipo|float) if emp.equipo else "0.00" }}</td>
-                            <td class="currency-bold text-dark">C$ {{ "{:,.2f}".format(emp.deposito|float) if emp.deposito else "0.00" }}</td>
-                            <td class="text-center">
-                                {% if emp.contrato_file %}
-                                    <a href="{{ url_for('static', filename='uploads/' + emp.contrato_file) }}" target="_blank" class="text-danger fs-5"><i class="bi bi-file-earmark-pdf"></i></a>
-                                {% endif %}
+                            <td class="small">
+                                <b>I:</b> {{ emp.fecha_inicio or '-' }}<br>
+                                <b>F:</b> {{ emp.fecha_fin or '-' }}
                             </td>
                             <td>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-edit fw-bold px-3 shadow-sm" 
-                                            data-bs-toggle="modal" data-bs-target="#modalEditar"
-                                            data-id="{{ emp.id }}" data-fecha="{{ emp.fecha }}"
-                                            data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}"
-                                            data-cedula="{{ emp.cedula }}" data-num_contrato="{{ emp.num_contrato }}"
-                                            data-direccion="{{ emp.direccion }}" data-equipo="{{ emp.equipo }}"
-                                            data-pago="{{ emp.pago }}" data-internet="{{ emp.internet }}"
-                                            data-deposito="{{ emp.deposito }}">
-                                        Editar
-                                    </button>
-                                    <a href="/delete/{{ emp.id }}" class="btn btn-sm btn-link text-danger text-decoration-none" onclick="return confirm('¿Eliminar?')">Eliminar</a>
+                                <span class="info-main text-info">C$ {{ "{:,.2f}".format(emp.internet|default(0)|float) }}</span>
+                                <span class="info-sub fw-bold text-success">Total: C$ {{ "{:,.2f}".format(emp.pago|default(0)|float) }}</span>
+                            </td>
+                            <td class="small text-muted">
+                                A: C$ {{ "{:,.2f}".format(emp.agua|default(0)|float) }}<br>
+                                L: C$ {{ "{:,.2f}".format(emp.luz|default(0)|float) }}
+                            </td>
+                            <td>
+                                <span class="badge {{ 'badge-cancelado' if emp.estado == 'Cancelado' else 'badge-pendiente' }} px-2 py-1 rounded-pill small">
+                                    {{ '✅ Pagado' if emp.estado == 'Cancelado' else '⏳ Pendiente' }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-edit fw-bold px-2" 
+                                        data-bs-toggle="modal" data-bs-target="#modalEditar"
+                                        data-id="{{ emp.id }}" 
+                                        data-nombre="{{ emp.nombre }}" 
+                                        data-apellido="{{ emp.apellido }}" 
+                                        data-cedula="{{ emp.cedula }}" 
+                                        data-num_contrato="{{ emp.num_contrato }}" 
+                                        data-direccion="{{ emp.direccion }}" 
+                                        data-internet="{{ emp.internet }}" 
+                                        data-pago="{{ emp.pago }}" 
+                                        data-agua="{{ emp.agua }}" 
+                                        data-luz="{{ emp.luz }}" 
+                                        data-fecha_inicio="{{ emp.fecha_inicio }}" 
+                                        data-fecha_fin="{{ emp.fecha_fin }}" 
+                                        data-estado="{{ emp.estado }}" 
+                                        data-fecha="{{ emp.fecha }}">Editar</button> <a href="/delete/{{ emp.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar?')"><i class="bi bi-trash"></i></a>
                                 </div>
                             </td>
                         </tr>
@@ -205,47 +240,34 @@
 
     <div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
-            <form action="/add" method="POST" class="modal-content"> 
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title">Actualizar Datos</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <form action="/add" method="POST" enctype="multipart/form-data" class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title fw-bold">Actualizar Contrato / Pago</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body row g-3">
                     <input type="hidden" name="id" id="edit-id">
-                    <div class="col-md-4"><label class="fw-bold small">Fecha</label><input type="date" name="fecha" id="edit-fecha" class="form-control" required></div>
-                    <div class="col-md-4"><label class="fw-bold small">Nombre</label><input type="text" name="nombre" id="edit-nombre" class="form-control" required></div>
-                    <div class="col-md-4"><label class="fw-bold small">Apellido</label><input type="text" name="apellido" id="edit-apellido" class="form-control"></div>
-                    <div class="col-md-4"><label class="fw-bold small">Cédula</label><input type="text" name="cedula" id="edit-cedula" class="form-control" required></div>
-                    <div class="col-md-4"><label class="fw-bold small">No. Contrato</label><input type="text" name="num_contrato" id="edit-num_contrato" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">Fecha Registro</label><input type="date" name="fecha" id="edit-fecha" class="form-control" required></div>
+                    <div class="col-md-4"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" id="edit-nombre" class="form-control" required></div>
+                    <div class="col-md-4"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" id="edit-apellido" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold text-primary">Inicio Contrato</label><input type="date" name="fecha_inicio" id="edit-fecha_inicio" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold text-primary">Fin Contrato</label><input type="date" name="fecha_fin" id="edit-fecha_fin" class="form-control"></div>
                     <div class="col-md-4">
-                        <label class="fw-bold small">Dirección</label>
-                        <select name="direccion" id="edit-direccion" class="form-select">
-                            <option value="Chinandega">Chinandega</option>
-                            <option value="Miguel Jarquín">Miguel Jarquín</option>
-                            <option value="Módulo 1">Módulo 1</option>
-                            <option value="Módulo 2">Módulo 2</option>
-                            <option value="Invercasa SAFI">Invercasa SAFI</option>
+                        <label class="small fw-bold">Estado del Pago</label>
+                        <select name="estado" id="edit-estado" class="form-select fw-bold">
+                            <option value="Cancelado">✅ Cancelado / Pagado</option>
+                            <option value="Pendiente">⏳ Pendiente</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="fw-bold small">Internet</label>
-                        <div class="input-group"><span class="input-group-text">C$</span><input type="number" step="0.01" name="internet" id="edit-internet" class="form-control"></div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="fw-bold small">Monto Pago</label>
-                        <div class="input-group"><span class="input-group-text">C$</span><input type="number" step="0.01" name="pago" id="edit-pago" class="form-control"></div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="fw-bold small">Equipo</label>
-                        <div class="input-group"><span class="input-group-text">C$</span><input type="number" step="0.01" name="equipo" id="edit-equipo" class="form-control"></div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="fw-bold small">Depósito</label>
-                        <div class="input-group"><span class="input-group-text">C$</span><input type="number" step="0.01" name="deposito" id="edit-deposito" class="form-control"></div>
-                    </div>
+                    <div class="col-md-3"><label class="small fw-bold text-info">Internet C$</label><input type="number" step="0.01" name="internet" id="edit-internet" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold">Agua C$</label><input type="number" step="0.01" name="agua" id="edit-agua" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold">Luz C$</label><input type="number" step="0.01" name="luz" id="edit-luz" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold">Total Pago C$</label><input type="number" step="0.01" name="pago" id="edit-pago" class="form-control"></div>
+                    <div class="col-md-12"><label class="small fw-bold">Actualizar Comprobante</label><input type="file" name="comprobante" class="form-control"></div>
                 </div>
-                <div class="modal-footer bg-light">
-                    <button type="submit" class="btn btn-success fw-bold">Actualizar Datos</button>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold">Guardar Cambios</button>
                 </div>
             </form>
         </div>
@@ -253,6 +275,31 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Lógica para llenar el Modal - ACTUALIZADO PARA FECHA
+        const modalEditar = document.getElementById('modalEditar');
+        modalEditar.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget;
+            
+            // Función auxiliar para evitar valores "null" o "None"
+            const getAttr = (attr) => {
+                const val = button.getAttribute(attr);
+                return (val && val !== "None") ? val : "";
+            };
+
+            document.getElementById('edit-id').value = getAttr('data-id');
+            document.getElementById('edit-fecha').value = getAttr('data-fecha'); // ARREGLO DE FECHA
+            document.getElementById('edit-nombre').value = getAttr('data-nombre');
+            document.getElementById('edit-apellido').value = getAttr('data-apellido');
+            document.getElementById('edit-internet').value = getAttr('data-internet');
+            document.getElementById('edit-pago').value = getAttr('data-pago');
+            document.getElementById('edit-agua').value = getAttr('data-agua');
+            document.getElementById('edit-luz').value = getAttr('data-luz');
+            document.getElementById('edit-fecha_inicio').value = getAttr('data-fecha_inicio');
+            document.getElementById('edit-fecha_fin').value = getAttr('data-fecha_fin');
+            document.getElementById('edit-estado').value = getAttr('data-estado');
+        });
+
+        // Selección múltiple
         function toggleAll(source) {
             const checkboxes = document.querySelectorAll('.select-item');
             checkboxes.forEach(cb => {
@@ -264,55 +311,24 @@
 
         function updateUI() {
             const selected = document.querySelectorAll('.select-item:checked');
-            const btnEliminar = document.getElementById('btnEliminarMasivo');
-            const countLabel = document.getElementById('countSelected');
-            
+            document.getElementById('btnEliminarMasivo').style.display = selected.length > 0 ? 'block' : 'none';
+            document.getElementById('countSelected').innerText = selected.length;
             document.querySelectorAll('.select-item').forEach(cb => {
                 cb.closest('tr').classList.toggle('row-selected', cb.checked);
             });
-
-            if (selected.length > 0) {
-                btnEliminar.style.display = 'block';
-                countLabel.innerText = selected.length;
-            } else {
-                btnEliminar.style.display = 'none';
-            }
         }
 
         function eliminarSeleccionados() {
             const selected = document.querySelectorAll('.select-item:checked');
             const ids = Array.from(selected).map(cb => cb.value);
-
-            if (confirm(`¿Estás seguro de que deseas eliminar ${ids.length} registros?`)) {
+            if (confirm(`¿Eliminar ${ids.length} registros permanentemente?`)) {
                 fetch('/delete_multiple', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ids: ids })
-                }).then(res => {
-                    if (res.ok) window.location.reload();
-                    else alert("Error al eliminar los registros.");
-                });
+                }).then(res => { if (res.ok) window.location.reload(); });
             }
         }
-
-        const modalEditar = document.getElementById('modalEditar');
-        modalEditar.addEventListener('show.bs.modal', event => {
-            const button = event.relatedTarget;
-            document.getElementById('edit-id').value = button.getAttribute('data-id');
-            document.getElementById('edit-nombre').value = button.getAttribute('data-nombre');
-            document.getElementById('edit-apellido').value = button.getAttribute('data-apellido');
-            document.getElementById('edit-cedula').value = button.getAttribute('data-cedula');
-            document.getElementById('edit-num_contrato').value = button.getAttribute('data-num_contrato');
-            document.getElementById('edit-direccion').value = button.getAttribute('data-direccion');
-            document.getElementById('edit-equipo').value = button.getAttribute('data-equipo');
-            document.getElementById('edit-pago').value = button.getAttribute('data-pago');
-            document.getElementById('edit-internet').value = button.getAttribute('data-internet');
-            document.getElementById('edit-deposito').value = button.getAttribute('data-deposito');
-
-            let fechaRaw = button.getAttribute('data-fecha'); 
-            if(fechaRaw && fechaRaw.includes(" ")) fechaRaw = fechaRaw.split(" ")[0];
-            document.getElementById('edit-fecha').value = fechaRaw;
-        });
     </script>
 </body>
 </html>

@@ -1,281 +1,274 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify
+import os
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from io import BytesIO
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 import firebase_admin
 from firebase_admin import credentials, firestore
-import os
-import json
-import pandas as pd
-import io 
-import unicodedata
 from werkzeug.utils import secure_filename
-from datetime import datetime
-from google.cloud.firestore_v1.base_query import FieldFilter
-from openpyxl.styles import Font, Alignment, PatternFill
 
-# ==========================================
-# 1. CONFIGURACIÓN DE FIREBASE
-# ==========================================
-firebase_json = os.environ.get('FIREBASE_JSON')
-if firebase_json:
-    cred_dict = json.loads(firebase_json)
-    cred = credentials.Certificate(cred_dict)
-else:
-    cred = credentials.Certificate("serviceAccountKey.json")
+app = Flask(__name__)
+app.secret_key = 'tu_llave_secreta_aqui'
 
+# --- CONFIGURACIÓN DE CARPETAS ---
+UPLOAD_FOLDER = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+# --- CONFIGURACIÓN DE FIREBASE ---
+cred = credentials.Certificate("serviceAccountKey.json")
 if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
-
 db = firestore.client()
 
-# ==========================================
-# 2. CONFIGURACIÓN DE FLASK
-# ==========================================
-app = Flask(__name__)
-app.secret_key = 'tu_llave_secreta_segura'
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+# --- AYUDANTES ---
+def clean_val(val, default=""):
+    """Limpia valores nulos o NaN de Pandas/Firebase"""
+    if val is None or (isinstance(val, float) and np.isnan(val)) or str(val).lower() == 'nan':
+        return default
+    return val
 
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+def safe_float(val):
+    """Convierte strings a float de forma segura"""
+    try: 
+        if not val or str(val).lower() == 'nan': return 0.0
+        return float(str(val).replace(',', '.'))
+    except: return 0.0
 
-# --- Función auxiliar para normalizar texto (quitar acentos) ---
-def normalizar(texto):
-    if not texto: return ""
-    return "".join(c for c in unicodedata.normalize('NFD', str(texto)) 
-                   if unicodedata.category(c) != 'Mn').lower().strip()
+@app.context_processor
+def inject_now():
+    return {'now': datetime.now(), 'datetime': datetime}
 
-# ==========================================
-# 3. RUTAS DE LA APLICACIÓN
-# ==========================================
-
+# --- RUTAS DE AUTENTICACIÓN ---
 @app.route('/')
-def login():
+def login_page():
+    if 'user' in session: return redirect(url_for('dashboard'))
     return render_template('login.html')
 
 @app.route('/auth', methods=['POST'])
 def auth():
-    user = request.form.get('username')
-    pwd = request.form.get('password')
-    if user == 'admin' and pwd == '1234':
+    user = request.form.get('user')
+    pw = request.form.get('password')
+    if user == 'admin' and pw == '1234': 
         session['user'] = user
         return redirect(url_for('dashboard'))
-    return "Acceso denegado. <a href='/'>Volver</a>"
+    flash("Usuario o contraseña incorrectos", "danger")
+    return redirect(url_for('login_page'))
 
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect(url_for('login_page'))
+
+# --- DASHBOARD ---
 @app.route('/dashboard')
 def dashboard():
-    if 'user' not in session: return redirect(url_for('login'))
+    if 'user' not in session: return redirect(url_for('login_page'))
     
-    # Parámetros de orden y búsqueda
+    search_query = request.args.get('search', '').lower()
     sort_by = request.args.get('sort', 'fecha')
-    search_query = request.args.get('search', '').strip().lower()
+    direction = request.args.get('direction', 'desc')
     
-    direction = firestore.Query.DESCENDING if 'fecha' in sort_by or 'pago' in sort_by else firestore.Query.ASCENDING
-    field = sort_by.split(' ')[0] 
-
     try:
-        docs = db.collection('Empleados').order_by(field, direction=direction).stream()
-        datos = []
+        order_dir = firestore.Query.DESCENDING if direction == 'desc' else firestore.Query.ASCENDING
+        docs = db.collection('Empleados').order_by(sort_by, direction=order_dir).stream()
         
+        empleados = []
+        total_recaudado = 0.0
+        total_pendiente = 0.0
+
         for doc in docs:
             item = doc.to_dict()
             item['id'] = doc.id
             
-            # Lógica de búsqueda global
-            if search_query:
-                # Concatenamos campos para buscar en todos a la vez
-                full_text = f"{item.get('nombre','')} {item.get('cedula','')} {item.get('num_contrato','')} {item.get('direccion','')}".lower()
-                if search_query in full_text:
-                    datos.append(item)
+            # Limpieza de datos
+            item['estado'] = clean_val(item.get('estado'), 'Pendiente')
+            pago_val = safe_float(item.get('pago'))
+            item['pago'] = pago_val
+            item['internet'] = safe_float(item.get('internet'))
+            item['agua'] = safe_float(item.get('agua'))
+            item['luz'] = safe_float(item.get('luz'))
+
+            # Resumen de dinero
+            if item['estado'] == 'Cancelado':
+                total_recaudado += pago_val
             else:
-                datos.append(item)
+                total_pendiente += pago_val
+
+            # Búsqueda
+            nombre_completo = f"{item.get('nombre','')} {item.get('apellido','')}".lower()
+            if not search_query or (search_query in nombre_completo or 
+                                    search_query in str(item.get('cedula','')).lower() or
+                                    search_query in str(item.get('num_contrato','')).lower()):
+                empleados.append(item)
                 
-        return render_template('index.html', empleados=datos, search_query=search_query)
+        return render_template('index.html', empleados=empleados, search_query=search_query, 
+                               sort_by=sort_by, direction=direction,
+                               total_recaudado=total_recaudado, total_pendiente=total_pendiente)
     except Exception as e:
-        return f"Error de Firebase: {e}"
+        return f"Error en Dashboard: {e}"
 
-@app.route('/add', methods=['POST'])
-def add():
-    if 'user' not in session: return redirect(url_for('login'))
-    d = request.form
-    cedula_raw = d.get('cedula', '').strip()
-    cedula_final = cedula_raw if cedula_raw and cedula_raw != '0' else "Sin Ingresar"
-    
-    nuevo_empleado = {
-        'fecha': d.get('fecha'),
-        'nombre': d.get('nombre', '').strip(),
-        'apellido': d.get('apellido', ''),
-        'cedula': cedula_final,
-        'num_contrato': d.get('num_contrato', ''),
-        'direccion': d.get('direccion', 'N/A'),
-        'pago': float(d.get('pago') or 0.0),
-        'equipo': float(d.get('equipo') or 0.0),
-        'deposito': float(d.get('deposito') or 0.0),
-        'internet': float(d.get('internet') or 0.0),
-        'sexo': 'M', 'ciudad': 'Chinandega'
-    }
-
-    try:
-        if cedula_final != "Sin Ingresar":
-            query = db.collection('Empleados').where(filter=FieldFilter('cedula', '==', cedula_final)).limit(1).get()
-            if query:
-                db.collection('Empleados').document(query[0].id).update(nuevo_empleado)
-                return redirect(url_for('dashboard'))
-        
-        db.collection('Empleados').add(nuevo_empleado)
-    except Exception as e:
-        return f"Error al guardar: {e}"
-
-    return redirect(url_for('dashboard'))
-
-@app.route('/upload_masivo', methods=['POST'])
-def upload_masivo():
-    if 'user' not in session: return redirect(url_for('login'))
-    file = request.files.get('archivo')
-    if not file: return redirect(url_for('dashboard'))
-
-    try:
-        df = pd.read_excel(file) if file.filename.endswith('.xlsx') else pd.read_csv(file)
-        df.columns = [str(c).strip() for c in df.columns]
-        df = df.fillna(0)
-
-        for _, row in df.iterrows():
-            cedula_raw = str(row.get('Cédula', row.get('cedula', ''))).strip()
-            cedula_final = "Sin Ingresar" if cedula_raw in ['0', '0.0', 'nan', 'NaN', ''] else cedula_raw
-
-            direccion = str(row.get('Dirección', row.get('direccion', row.get('Lugar', 'General')))).strip()
-            # Limpiar contrato de decimales (ej: 145.0 -> 145)
-            contrato_raw = str(row.get('Contrato', row.get('num_contrato', row.get('Contrato ', 'S/N')))).strip()
-            contrato = contrato_raw.split('.')[0]
-            
-            nombre = str(row.get('Nombre', row.get('nombre_empleado', 'Cliente'))).strip()
-            apellido = str(row.get('apellido_empleado', f"Zona {direccion}")).strip()
-
-            datos_pago = {
-                'fecha': str(row.get('Fecha', row.get('fecha', datetime.now().strftime('%Y-%m-%d')))),
-                'nombre': nombre,
-                'apellido': apellido,
-                'cedula': cedula_final,
-                'num_contrato': contrato,
-                'direccion': direccion,
-                'internet': float(row.get('Internet', row.get('internet', 0))),
-                'pago': float(row.get('Pago', row.get('pago', 0))),
-                'equipo': float(row.get('Equipo', row.get('equipo', row.get('Alquiler Equipos', 0)))),
-                'deposito': float(row.get('Depósito', row.get('Deposito', row.get('deposito', 0)))),
-                'sexo': 'M', 'ciudad': 'Chinandega'
-            }
-
-            ref = db.collection('Empleados')
-            # Evitar duplicados por contrato y fecha
-            query = ref.where(filter=FieldFilter('num_contrato', '==', contrato))\
-                       .where(filter=FieldFilter('fecha', '==', datos_pago['fecha'])).limit(1).get()
-            
-            if query:
-                ref.document(query[0].id).update(datos_pago)
-            else:
-                ref.add(datos_pago)
-
-        return redirect(url_for('dashboard'))
-    except Exception as e:
-        return f"Error procesando la subida masiva: {e}"
-
+# --- REPORTE ---
 @app.route('/reporte', methods=['GET', 'POST'])
 def reporte():
-    if 'user' not in session: return redirect(url_for('login'))
-    
-    # Se incluye Invercasa SAFI
-    direcciones = ["Chinandega", "Miguel Jarquín", "Módulo 1", "Módulo 2", "Invercasa SAFI"]
-    anios = ["2024", "2025", "2026"]
-    
-    empleados = []
-    totales = {'pago': 0.0, 'equipo': 0.0, 'deposito': 0.0, 'internet': 0.0}
-    
-    seleccionada = request.form.get('direccion')
-    anio_sel = request.form.get('anio')
-    contrato_filtro = request.form.get('num_contrato', '').strip()
-
-    if request.method == 'POST':
-        try:
-            docs = db.collection('Empleados').stream()
-            sel_norm = normalizar(seleccionada)
-
-            for doc in docs:
-                emp = doc.to_dict()
-                dir_db_norm = normalizar(emp.get('direccion', ''))
-                fecha_db = str(emp.get('fecha', ''))
-                num_con_db = str(emp.get('num_contrato', '')).strip()
-                
-                cumple_direccion = not seleccionada or sel_norm in dir_db_norm
-                cumple_anio = not anio_sel or anio_sel in fecha_db
-                cumple_contrato = not contrato_filtro or contrato_filtro.lower() == num_con_db.lower()
-                
-                if cumple_direccion and cumple_anio and cumple_contrato:
-                    emp['id'] = doc.id
-                    empleados.append(emp)
-                    totales['pago'] += float(emp.get('pago') or 0)
-                    totales['equipo'] += float(emp.get('equipo') or 0)
-                    totales['deposito'] += float(emp.get('deposito') or 0)
-                    totales['internet'] += float(emp.get('internet') or 0)
-                    
-        except Exception as e:
-            print(f"Error en reporte: {e}")
-
-    return render_template('reporte.html', 
-                            direcciones=direcciones, anios=anios, 
-                            empleados=empleados, totales=totales, 
-                            seleccionada=seleccionada, anio_sel=anio_sel,
-                            contrato_sel=contrato_filtro)
-
-@app.route('/exportar_excel')
-def exportar_excel():
-    if 'user' not in session: return redirect(url_for('login'))
+    if 'user' not in session: return redirect(url_for('login_page'))
     try:
-        docs = db.collection('Empleados').stream()
-        datos = []
-        for doc in docs:
-            d = doc.to_dict()
-            datos.append({
-                'Fecha': d.get('fecha'),
-                'Cédula': d.get('cedula'),
-                'Contrato': d.get('num_contrato'),
-                'Nombre': f"{d.get('nombre')} {d.get('apellido')}",
-                'Dirección': d.get('direccion'),
-                'Internet': float(d.get('internet') or 0),
-                'Pago': float(d.get('pago') or 0),
-                'Equipo': float(d.get('equipo') or 0),
-                'Depósito': float(d.get('deposito') or 0)
-            })
-        df = pd.DataFrame(datos)
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Reporte')
-        output.seek(0)
-        return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='Reporte_Pagos.xlsx')
-    except Exception as e:
-        return f"Error exportando: {e}"
+        docs_all = db.collection('Empleados').stream()
+        direcciones, todos_datos = set(), []
+        
+        for doc in docs_all:
+            item = doc.to_dict()
+            item['id'] = doc.id
+            todos_datos.append(item)
+            dir_val = clean_val(item.get('direccion'))
+            if dir_val: direcciones.add(dir_val)
 
-@app.route('/delete_multiple', methods=['POST'])
-def delete_multiple():
-    if 'user' not in session: return jsonify({'status': 'error', 'message': 'No autorizado'}), 401
-    data = request.get_json()
-    ids = data.get('ids', [])
-    try:
-        batch = db.batch()
-        for doc_id in ids:
-            batch.delete(db.collection('Empleados').document(doc_id))
-        batch.commit()
-        return jsonify({'status': 'success'})
+        dir_sel = request.form.get('direccion', '')
+        cont_sel = request.form.get('num_contrato', '')
+        est_sel = request.form.get('estado', '')
+        
+        filtrados = []
+        totales = {'internet': 0.0, 'pago': 0.0, 'agua': 0.0, 'luz': 0.0}
+
+        for emp in todos_datos:
+            match_dir = not dir_sel or str(emp.get('direccion')) == dir_sel
+            match_cont = not cont_sel or cont_sel.lower() in str(emp.get('num_contrato', '')).lower()
+            match_est = not est_sel or emp.get('estado') == est_sel
+            
+            if match_dir and match_cont and match_est:
+                for k in totales:
+                    val = safe_float(emp.get(k))
+                    emp[k] = val
+                    totales[k] += val
+                filtrados.append(emp)
+
+        return render_template('reporte.html', empleados=filtrados, direcciones=sorted(list(direcciones)), 
+                               totales=totales, seleccionada=dir_sel, contrato_sel=cont_sel, estado_sel=est_sel)
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return f"Error en reporte: {str(e)}"
+
+# --- CRUD ---
+@app.route('/add', methods=['POST'])
+def add():
+    if 'user' not in session: return redirect(url_for('login_page'))
+    d = request.form
+    id_registro = d.get('id')
+    file = request.files.get('comprobante')
+    filename = d.get('archivo_actual', '')
+    
+    if file and file.filename != '':
+        filename = secure_filename(f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    
+    datos = {
+        'fecha': d.get('fecha') or datetime.now().strftime('%Y-%m-%d'),
+        'nombre': clean_val(d.get('nombre')),
+        'apellido': clean_val(d.get('apellido')),
+        'cedula': clean_val(d.get('cedula')),
+        'num_contrato': clean_val(d.get('num_contrato')),
+        'direccion': d.get('direccion', ''),
+        'fecha_inicio': d.get('fecha_inicio', ''),
+        'fecha_fin': d.get('fecha_fin', ''),
+        'estado': d.get('estado', 'Pendiente'),
+        'internet': safe_float(d.get('internet')),
+        'pago': safe_float(d.get('pago')),
+        'agua': safe_float(d.get('agua')),
+        'luz': safe_float(d.get('luz')),
+        'archivo_url': filename
+    }
+
+    if id_registro:
+        db.collection('Empleados').document(id_registro).update(datos)
+        flash("Registro actualizado correctamente", "success")
+    else:
+        db.collection('Empleados').add(datos)
+        flash("Nuevo registro creado", "success")
+    return redirect(url_for('dashboard'))
 
 @app.route('/delete/<id>')
 def delete(id):
-    if 'user' not in session: return redirect(url_for('login'))
+    if 'user' not in session: return redirect(url_for('login_page'))
     db.collection('Empleados').document(id).delete()
+    flash("Registro eliminado", "warning")
     return redirect(url_for('dashboard'))
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
+@app.route('/delete_multiple', methods=['POST'])
+def delete_multiple():
+    if 'user' not in session: return jsonify({"status": "error"}), 403
+    data = request.get_json()
+    ids = data.get('ids', [])
+    batch = db.batch()
+    for doc_id in ids:
+        doc_ref = db.collection('Empleados').document(doc_id)
+        batch.delete(doc_ref)
+    batch.commit()
+    flash(f"{len(ids)} registros eliminados", "warning")
+    return jsonify({"status": "success"})
+
+# --- CARGA MASIVA Y EXPORTACIÓN ---
+@app.route('/upload_masivo', methods=['POST'])
+def upload_masivo():
+    file = request.files.get('archivo')
+    if file:
+        try:
+            df = pd.read_excel(file).replace({np.nan: None})
+            batch = db.batch()
+            for _, row in df.iterrows():
+                new_doc = db.collection('Empleados').document()
+                batch.set(new_doc, {
+                    'fecha': str(row.get('Fecha') or datetime.now().strftime('%Y-%m-%d')),
+                    'nombre': clean_val(row.get('Nombre')),
+                    'apellido': clean_val(row.get('Apellido')),
+                    'cedula': clean_val(row.get('Cédula')),
+                    'num_contrato': clean_val(row.get('Contrato')),
+                    'direccion': clean_val(row.get('Dirección')),
+                    'fecha_inicio': clean_val(row.get('Inicio')),
+                    'fecha_fin': clean_val(row.get('Fin')),
+                    'estado': clean_val(row.get('Estado'), 'Pendiente'),
+                    'internet': safe_float(row.get('Internet')),
+                    'pago': safe_float(row.get('Pago')),
+                    'agua': safe_float(row.get('Agua')),
+                    'luz': safe_float(row.get('Luz'))
+                })
+            batch.commit()
+            flash("Carga masiva exitosa", "success")
+        except Exception as e:
+            flash(f"Error en Excel: {e}", "danger")
+    return redirect(url_for('dashboard'))
+
+@app.route('/exportar_excel')
+def exportar_excel():
+    if 'user' not in session: return redirect(url_for('login_page'))
+    docs = db.collection('Empleados').stream()
+    data = []
+    for doc in docs:
+        item = doc.to_dict()
+        data.append({
+            'Fecha': clean_val(item.get('fecha')),
+            'Nombre': clean_val(item.get('nombre')),
+            'Apellido': clean_val(item.get('apellido')),
+            'Cédula': clean_val(item.get('cedula')),
+            'Contrato': clean_val(item.get('num_contrato')),
+            'Dirección': clean_val(item.get('direccion')),
+            'Inicio': clean_val(item.get('fecha_inicio')),
+            'Fin': clean_val(item.get('fecha_fin')),
+            'Estado': clean_val(item.get('estado'), 'Pendiente'),
+            'Internet': safe_float(item.get('internet')),
+            'Pago': safe_float(item.get('pago')),
+            'Agua': safe_float(item.get('agua')),
+            'Luz': safe_float(item.get('luz'))
+        })
+    
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Empleados')
+    output.seek(0)
+    
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name='Reporte_Contratos.xlsx')
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(debug=True, port=5000)
