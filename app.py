@@ -1,4 +1,5 @@
 import os
+import re
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -25,13 +26,11 @@ db = firestore.client()
 
 # --- AYUDANTES ---
 def clean_val(val, default=""):
-    """Limpia valores nulos o NaN de Pandas/Firebase"""
     if val is None or (isinstance(val, float) and np.isnan(val)) or str(val).lower() == 'nan':
         return default
     return val
 
 def safe_float(val):
-    """Convierte strings a float de forma segura"""
     try: 
         if not val or str(val).lower() == 'nan': return 0.0
         return float(str(val).replace(',', '.'))
@@ -82,8 +81,6 @@ def dashboard():
         for doc in docs:
             item = doc.to_dict()
             item['id'] = doc.id
-            
-            # Limpieza de datos
             item['estado'] = clean_val(item.get('estado'), 'Pendiente')
             pago_val = safe_float(item.get('pago'))
             item['pago'] = pago_val
@@ -91,13 +88,11 @@ def dashboard():
             item['agua'] = safe_float(item.get('agua'))
             item['luz'] = safe_float(item.get('luz'))
 
-            # Resumen de dinero
             if item['estado'] == 'Cancelado':
                 total_recaudado += pago_val
             else:
                 total_pendiente += pago_val
 
-            # Búsqueda
             nombre_completo = f"{item.get('nombre','')} {item.get('apellido','')}".lower()
             if not search_query or (search_query in nombre_completo or 
                                     search_query in str(item.get('cedula','')).lower() or
@@ -110,21 +105,33 @@ def dashboard():
     except Exception as e:
         return f"Error en Dashboard: {e}"
 
-# --- REPORTE ---
+# --- REPORTE (CON TODOS LOS FILTROS Y AÑO CORREGIDO) ---
 @app.route('/reporte', methods=['GET', 'POST'])
 def reporte():
     if 'user' not in session: return redirect(url_for('login_page'))
     try:
         docs_all = db.collection('Empleados').stream()
-        direcciones, todos_datos = set(), []
+        direcciones = set()
+        anios_disponibles = set()
+        todos_datos = []
         
         for doc in docs_all:
             item = doc.to_dict()
             item['id'] = doc.id
             todos_datos.append(item)
+            
+            # 1. Obtener direcciones
             dir_val = clean_val(item.get('direccion'))
             if dir_val: direcciones.add(dir_val)
+            
+            # 2. EXTRAER AÑO DE FORMA LIMPIA (SOLO 4 DÍGITOS)
+            fecha_str = str(item.get('fecha', ''))
+            anio_match = re.search(r'(\d{4})', fecha_str)
+            if anio_match:
+                anios_disponibles.add(anio_match.group(1))
 
+        # Capturar filtros del formulario
+        anio_sel = request.form.get('anio', '')
         dir_sel = request.form.get('direccion', '')
         cont_sel = request.form.get('num_contrato', '')
         est_sel = request.form.get('estado', '')
@@ -133,19 +140,33 @@ def reporte():
         totales = {'internet': 0.0, 'pago': 0.0, 'agua': 0.0, 'luz': 0.0}
 
         for emp in todos_datos:
+            fecha_emp = str(emp.get('fecha', ''))
+            
+            # Lógica de filtrado corregida para el año
+            match_anio = not anio_sel or anio_sel in fecha_emp
             match_dir = not dir_sel or str(emp.get('direccion')) == dir_sel
             match_cont = not cont_sel or cont_sel.lower() in str(emp.get('num_contrato', '')).lower()
             match_est = not est_sel or emp.get('estado') == est_sel
             
-            if match_dir and match_cont and match_est:
+            if match_anio and match_dir and match_cont and match_est:
                 for k in totales:
                     val = safe_float(emp.get(k))
                     emp[k] = val
                     totales[k] += val
                 filtrados.append(emp)
 
-        return render_template('reporte.html', empleados=filtrados, direcciones=sorted(list(direcciones)), 
-                               totales=totales, seleccionada=dir_sel, contrato_sel=cont_sel, estado_sel=est_sel)
+        anios_lista = sorted(list(anios_disponibles), reverse=True)
+        if not anios_lista: anios_lista = [str(datetime.now().year)]
+
+        return render_template('reporte.html', 
+                               empleados=filtrados, 
+                               direcciones=sorted(list(direcciones)), 
+                               totales=totales, 
+                               seleccionada=dir_sel, 
+                               contrato_sel=cont_sel, 
+                               estado_sel=est_sel, 
+                               anios=anios_lista, 
+                               anio_sel=anio_sel)
     except Exception as e:
         return f"Error en reporte: {str(e)}"
 
@@ -241,10 +262,17 @@ def upload_masivo():
 @app.route('/exportar_excel')
 def exportar_excel():
     if 'user' not in session: return redirect(url_for('login_page'))
+    
+    anio_sel = request.args.get('anio', '')
     docs = db.collection('Empleados').stream()
     data = []
     for doc in docs:
         item = doc.to_dict()
+        fecha_emp = str(item.get('fecha', ''))
+        
+        if anio_sel and anio_sel not in fecha_emp:
+            continue
+
         data.append({
             'Fecha': clean_val(item.get('fecha')),
             'Nombre': clean_val(item.get('nombre')),
@@ -268,7 +296,7 @@ def exportar_excel():
     output.seek(0)
     
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                     as_attachment=True, download_name='Reporte_Contratos.xlsx')
+                     as_attachment=True, download_name=f'Reporte_Contratos_{anio_sel or "Gral"}.xlsx')
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
