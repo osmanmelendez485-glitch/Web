@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -18,12 +19,24 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# --- CONFIGURACIÓN DE FIREBASE ---
-# El archivo serviceAccountKey.json debe estar en la raíz (ignorado por git)
-cred = credentials.Certificate("serviceAccountKey.json")
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
+# --- CONFIGURACIÓN DE FIREBASE (HÍBRIDA: LOCAL Y RENDER) ---
+firebase_json = os.environ.get('FIREBASE_JSON')
+
+try:
+    if firebase_json:
+        # Si existe la variable en Render, la cargamos desde el entorno
+        cred_info = json.loads(firebase_json)
+        cred = credentials.Certificate(cred_info)
+    else:
+        # Si no, buscamos el archivo local (para tu PC)
+        cred = credentials.Certificate("serviceAccountKey.json")
+
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
+    db = firestore.client()
+except Exception as e:
+    print(f"⚠️ Error al conectar Firebase: {e}")
+    db = None
 
 # --- AYUDANTES ---
 def clean_val(val, default=""):
@@ -66,6 +79,7 @@ def logout():
 @app.route('/dashboard')
 def dashboard():
     if 'user' not in session: return redirect(url_for('login_page'))
+    if not db: return "Error: No hay conexión con la base de datos."
     
     search_query = request.args.get('search', '').lower()
     sort_by = request.args.get('sort', 'fecha')
@@ -106,10 +120,12 @@ def dashboard():
     except Exception as e:
         return f"Error en Dashboard: {e}"
 
-# --- REPORTE (MULTIFILTRO COMPLETO) ---
+# --- REPORTE (AÑO CORREGIDO Y MULTIFILTRO) ---
 @app.route('/reporte', methods=['GET', 'POST'])
 def reporte():
     if 'user' not in session: return redirect(url_for('login_page'))
+    if not db: return "Error de base de datos."
+    
     try:
         docs_all = db.collection('Empleados').stream()
         direcciones = set()
@@ -125,13 +141,13 @@ def reporte():
             dir_val = clean_val(item.get('direccion'))
             if dir_val: direcciones.add(dir_val)
             
-            # 2. Extracción de AÑO LIMPIO (Evita 9/20, 8/15, etc)
+            # 2. Extracción de AÑO LIMPIO (Evita basura como 9/20)
             fecha_str = str(item.get('fecha', ''))
             anio_match = re.search(r'(\d{4})', fecha_str)
             if anio_match:
                 anios_disponibles.add(anio_match.group(1))
 
-        # Capturar filtros enviados
+        # Capturar filtros del usuario
         anio_sel = request.form.get('anio', '')
         dir_sel = request.form.get('direccion', '')
         cont_sel = request.form.get('num_contrato', '')
@@ -143,7 +159,7 @@ def reporte():
         for emp in todos_datos:
             fecha_emp = str(emp.get('fecha', ''))
             
-            # Aplicar todos los filtros simultáneamente
+            # Aplicar todos los filtros cruzados
             match_anio = not anio_sel or anio_sel in fecha_emp
             match_dir = not dir_sel or str(emp.get('direccion')) == dir_sel
             match_cont = not cont_sel or cont_sel.lower() in str(emp.get('num_contrato', '')).lower()
@@ -203,10 +219,10 @@ def add():
 
     if id_registro:
         db.collection('Empleados').document(id_registro).update(datos)
-        flash("Registro actualizado", "success")
+        flash("Registro actualizado correctamente", "success")
     else:
         db.collection('Empleados').add(datos)
-        flash("Registro creado", "success")
+        flash("Nuevo registro creado", "success")
     return redirect(url_for('dashboard'))
 
 @app.route('/delete/<id>')
@@ -242,7 +258,7 @@ def upload_masivo():
             batch.commit()
             flash("Carga masiva completada", "success")
         except Exception as e:
-            flash(f"Error: {e}", "danger")
+            flash(f"Error en carga masiva: {e}", "danger")
     return redirect(url_for('dashboard'))
 
 # --- EXPORTAR EXCEL ---
@@ -259,6 +275,11 @@ def exportar_excel():
             'Apellido': item.get('apellido'),
             'Cédula': item.get('cedula'),
             'Contrato': item.get('num_contrato'),
+            'Dirección': item.get('direccion'),
+            'Estado': item.get('estado'),
+            'Internet': safe_float(item.get('internet')),
+            'Agua': safe_float(item.get('agua')),
+            'Luz': safe_float(item.get('luz')),
             'Pago Total': safe_float(item.get('pago'))
         })
     df = pd.DataFrame(data)
@@ -270,4 +291,6 @@ def exportar_excel():
                      as_attachment=True, download_name='Reporte_Pagos.xlsx')
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Usamos el puerto que asigne el servidor o el 5000 por defecto
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
