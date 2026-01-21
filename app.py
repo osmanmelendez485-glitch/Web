@@ -19,6 +19,7 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 # --- CONFIGURACIÓN DE FIREBASE ---
+# El archivo serviceAccountKey.json debe estar en la raíz (ignorado por git)
 cred = credentials.Certificate("serviceAccountKey.json")
 if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
@@ -105,7 +106,7 @@ def dashboard():
     except Exception as e:
         return f"Error en Dashboard: {e}"
 
-# --- REPORTE (CON TODOS LOS FILTROS Y AÑO CORREGIDO) ---
+# --- REPORTE (MULTIFILTRO COMPLETO) ---
 @app.route('/reporte', methods=['GET', 'POST'])
 def reporte():
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -120,17 +121,17 @@ def reporte():
             item['id'] = doc.id
             todos_datos.append(item)
             
-            # 1. Obtener direcciones
+            # 1. Direcciones
             dir_val = clean_val(item.get('direccion'))
             if dir_val: direcciones.add(dir_val)
             
-            # 2. EXTRAER AÑO DE FORMA LIMPIA (SOLO 4 DÍGITOS)
+            # 2. Extracción de AÑO LIMPIO (Evita 9/20, 8/15, etc)
             fecha_str = str(item.get('fecha', ''))
             anio_match = re.search(r'(\d{4})', fecha_str)
             if anio_match:
                 anios_disponibles.add(anio_match.group(1))
 
-        # Capturar filtros del formulario
+        # Capturar filtros enviados
         anio_sel = request.form.get('anio', '')
         dir_sel = request.form.get('direccion', '')
         cont_sel = request.form.get('num_contrato', '')
@@ -142,7 +143,7 @@ def reporte():
         for emp in todos_datos:
             fecha_emp = str(emp.get('fecha', ''))
             
-            # Lógica de filtrado corregida para el año
+            # Aplicar todos los filtros simultáneamente
             match_anio = not anio_sel or anio_sel in fecha_emp
             match_dir = not dir_sel or str(emp.get('direccion')) == dir_sel
             match_cont = not cont_sel or cont_sel.lower() in str(emp.get('num_contrato', '')).lower()
@@ -170,7 +171,7 @@ def reporte():
     except Exception as e:
         return f"Error en reporte: {str(e)}"
 
-# --- CRUD ---
+# --- CRUD OPERACIONES ---
 @app.route('/add', methods=['POST'])
 def add():
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -202,10 +203,10 @@ def add():
 
     if id_registro:
         db.collection('Empleados').document(id_registro).update(datos)
-        flash("Registro actualizado correctamente", "success")
+        flash("Registro actualizado", "success")
     else:
         db.collection('Empleados').add(datos)
-        flash("Nuevo registro creado", "success")
+        flash("Registro creado", "success")
     return redirect(url_for('dashboard'))
 
 @app.route('/delete/<id>')
@@ -215,20 +216,7 @@ def delete(id):
     flash("Registro eliminado", "warning")
     return redirect(url_for('dashboard'))
 
-@app.route('/delete_multiple', methods=['POST'])
-def delete_multiple():
-    if 'user' not in session: return jsonify({"status": "error"}), 403
-    data = request.get_json()
-    ids = data.get('ids', [])
-    batch = db.batch()
-    for doc_id in ids:
-        doc_ref = db.collection('Empleados').document(doc_id)
-        batch.delete(doc_ref)
-    batch.commit()
-    flash(f"{len(ids)} registros eliminados", "warning")
-    return jsonify({"status": "success"})
-
-# --- CARGA MASIVA Y EXPORTACIÓN ---
+# --- CARGA MASIVA EXCEL ---
 @app.route('/upload_masivo', methods=['POST'])
 def upload_masivo():
     file = request.files.get('archivo')
@@ -245,8 +233,6 @@ def upload_masivo():
                     'cedula': clean_val(row.get('Cédula')),
                     'num_contrato': clean_val(row.get('Contrato')),
                     'direccion': clean_val(row.get('Dirección')),
-                    'fecha_inicio': clean_val(row.get('Inicio')),
-                    'fecha_fin': clean_val(row.get('Fin')),
                     'estado': clean_val(row.get('Estado'), 'Pendiente'),
                     'internet': safe_float(row.get('Internet')),
                     'pago': safe_float(row.get('Pago')),
@@ -254,49 +240,34 @@ def upload_masivo():
                     'luz': safe_float(row.get('Luz'))
                 })
             batch.commit()
-            flash("Carga masiva exitosa", "success")
+            flash("Carga masiva completada", "success")
         except Exception as e:
-            flash(f"Error en Excel: {e}", "danger")
+            flash(f"Error: {e}", "danger")
     return redirect(url_for('dashboard'))
 
+# --- EXPORTAR EXCEL ---
 @app.route('/exportar_excel')
 def exportar_excel():
     if 'user' not in session: return redirect(url_for('login_page'))
-    
-    anio_sel = request.args.get('anio', '')
     docs = db.collection('Empleados').stream()
     data = []
     for doc in docs:
         item = doc.to_dict()
-        fecha_emp = str(item.get('fecha', ''))
-        
-        if anio_sel and anio_sel not in fecha_emp:
-            continue
-
         data.append({
-            'Fecha': clean_val(item.get('fecha')),
-            'Nombre': clean_val(item.get('nombre')),
-            'Apellido': clean_val(item.get('apellido')),
-            'Cédula': clean_val(item.get('cedula')),
-            'Contrato': clean_val(item.get('num_contrato')),
-            'Dirección': clean_val(item.get('direccion')),
-            'Inicio': clean_val(item.get('fecha_inicio')),
-            'Fin': clean_val(item.get('fecha_fin')),
-            'Estado': clean_val(item.get('estado'), 'Pendiente'),
-            'Internet': safe_float(item.get('internet')),
-            'Pago': safe_float(item.get('pago')),
-            'Agua': safe_float(item.get('agua')),
-            'Luz': safe_float(item.get('luz'))
+            'Fecha': item.get('fecha'),
+            'Nombre': item.get('nombre'),
+            'Apellido': item.get('apellido'),
+            'Cédula': item.get('cedula'),
+            'Contrato': item.get('num_contrato'),
+            'Pago Total': safe_float(item.get('pago'))
         })
-    
     df = pd.DataFrame(data)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Empleados')
+        df.to_excel(writer, index=False, sheet_name='Reporte')
     output.seek(0)
-    
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                     as_attachment=True, download_name=f'Reporte_Contratos_{anio_sel or "Gral"}.xlsx')
+                     as_attachment=True, download_name='Reporte_Pagos.xlsx')
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
