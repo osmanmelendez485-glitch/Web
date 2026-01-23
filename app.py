@@ -19,16 +19,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# --- CONFIGURACIÓN DE FIREBASE (HÍBRIDA: LOCAL Y RENDER) ---
+# --- CONFIGURACIÓN DE FIREBASE ---
 firebase_json = os.environ.get('FIREBASE_JSON')
 
 try:
     if firebase_json:
-        # Si existe la variable en Render, la cargamos desde el entorno
         cred_info = json.loads(firebase_json)
         cred = credentials.Certificate(cred_info)
     else:
-        # Si no, buscamos el archivo local (para tu PC)
         cred = credentials.Certificate("serviceAccountKey.json")
 
     if not firebase_admin._apps:
@@ -46,7 +44,7 @@ def clean_val(val, default=""):
 
 def safe_float(val):
     try: 
-        if not val or str(val).lower() == 'nan': return 0.0
+        if val is None or str(val).lower() == 'nan' or str(val).strip() == '': return 0.0
         return float(str(val).replace(',', '.'))
     except: return 0.0
 
@@ -99,19 +97,17 @@ def dashboard():
             item['estado'] = clean_val(item.get('estado'), 'Pendiente')
             pago_val = safe_float(item.get('pago'))
             item['pago'] = pago_val
-            item['internet'] = safe_float(item.get('internet'))
-            item['agua'] = safe_float(item.get('agua'))
-            item['luz'] = safe_float(item.get('luz'))
-
-            if item['estado'] == 'Cancelado':
-                total_recaudado += pago_val
-            else:
-                total_pendiente += pago_val
-
+            
+            # Formateo para búsqueda
             nombre_completo = f"{item.get('nombre','')} {item.get('apellido','')}".lower()
-            if not search_query or (search_query in nombre_completo or 
-                                    search_query in str(item.get('cedula','')).lower() or
-                                    search_query in str(item.get('num_contrato','')).lower()):
+            cedula = str(item.get('cedula','')).lower()
+            num_con = str(item.get('num_contrato','')).lower()
+
+            if not search_query or (search_query in nombre_completo or search_query in cedula or search_query in num_con):
+                if item['estado'] == 'Cancelado':
+                    total_recaudado += pago_val
+                else:
+                    total_pendiente += pago_val
                 empleados.append(item)
                 
         return render_template('index.html', empleados=empleados, search_query=search_query, 
@@ -120,111 +116,42 @@ def dashboard():
     except Exception as e:
         return f"Error en Dashboard: {e}"
 
-# --- REPORTE (AÑO CORREGIDO Y MULTIFILTRO) ---
-@app.route('/reporte', methods=['GET', 'POST'])
-def reporte():
-    if 'user' not in session: return redirect(url_for('login_page'))
-    if not db: return "Error de base de datos."
-    
-    try:
-        docs_all = db.collection('Empleados').stream()
-        direcciones = set()
-        anios_disponibles = set()
-        todos_datos = []
-        
-        for doc in docs_all:
-            item = doc.to_dict()
-            item['id'] = doc.id
-            todos_datos.append(item)
-            
-            # 1. Direcciones
-            dir_val = clean_val(item.get('direccion'))
-            if dir_val: direcciones.add(dir_val)
-            
-            # 2. Extracción de AÑO LIMPIO (Evita basura como 9/20)
-            fecha_str = str(item.get('fecha', ''))
-            anio_match = re.search(r'(\d{4})', fecha_str)
-            if anio_match:
-                anios_disponibles.add(anio_match.group(1))
-
-        # Capturar filtros del usuario
-        anio_sel = request.form.get('anio', '')
-        dir_sel = request.form.get('direccion', '')
-        cont_sel = request.form.get('num_contrato', '')
-        est_sel = request.form.get('estado', '')
-        
-        filtrados = []
-        totales = {'internet': 0.0, 'pago': 0.0, 'agua': 0.0, 'luz': 0.0}
-
-        for emp in todos_datos:
-            fecha_emp = str(emp.get('fecha', ''))
-            
-            # Aplicar todos los filtros cruzados
-            match_anio = not anio_sel or anio_sel in fecha_emp
-            match_dir = not dir_sel or str(emp.get('direccion')) == dir_sel
-            match_cont = not cont_sel or cont_sel.lower() in str(emp.get('num_contrato', '')).lower()
-            match_est = not est_sel or emp.get('estado') == est_sel
-            
-            if match_anio and match_dir and match_cont and match_est:
-                for k in totales:
-                    val = safe_float(emp.get(k))
-                    emp[k] = val
-                    totales[k] += val
-                filtrados.append(emp)
-
-        anios_lista = sorted(list(anios_disponibles), reverse=True)
-        if not anios_lista: anios_lista = [str(datetime.now().year)]
-
-        return render_template('reporte.html', 
-                               empleados=filtrados, 
-                               direcciones=sorted(list(direcciones)), 
-                               totales=totales, 
-                               seleccionada=dir_sel, 
-                               contrato_sel=cont_sel, 
-                               estado_sel=est_sel, 
-                               anios=anios_lista, 
-                               anio_sel=anio_sel)
-    except Exception as e:
-        return f"Error en reporte: {str(e)}"
-
-# --- CRUD OPERACIONES ---
-@app.route('/add', methods=['POST'])
-def add():
+# --- GUARDAR / EDITAR ---
+@app.route('/save', methods=['POST'])
+def save():
     if 'user' not in session: return redirect(url_for('login_page'))
     d = request.form
-    id_registro = d.get('id')
-    file = request.files.get('comprobante')
-    filename = d.get('archivo_actual', '')
-    
-    if file and file.filename != '':
-        filename = secure_filename(f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    emp_id = d.get('id')
     
     datos = {
-        'fecha': d.get('fecha') or datetime.now().strftime('%Y-%m-%d'),
-        'nombre': clean_val(d.get('nombre')),
-        'apellido': clean_val(d.get('apellido')),
-        'cedula': clean_val(d.get('cedula')),
-        'num_contrato': clean_val(d.get('num_contrato')),
-        'direccion': d.get('direccion', ''),
-        'fecha_inicio': d.get('fecha_inicio', ''),
-        'fecha_fin': d.get('fecha_fin', ''),
+        'fecha': d.get('fecha'),
+        'nombre': d.get('nombre'),
+        'apellido': d.get('apellido'),
+        'cedula': d.get('cedula'),
+        'num_contrato': d.get('num_contrato'),
+        'direccion': d.get('direccion'),
+        'fecha_inicio': d.get('fecha_inicio'),
+        'fecha_fin': d.get('fecha_fin'),
         'estado': d.get('estado', 'Pendiente'),
         'internet': safe_float(d.get('internet')),
-        'pago': safe_float(d.get('pago')),
         'agua': safe_float(d.get('agua')),
         'luz': safe_float(d.get('luz')),
-        'archivo_url': filename
+        'pago': safe_float(d.get('pago'))
     }
-
-    if id_registro:
-        db.collection('Empleados').document(id_registro).update(datos)
-        flash("Registro actualizado correctamente", "success")
-    else:
-        db.collection('Empleados').add(datos)
-        flash("Nuevo registro creado", "success")
+    
+    try:
+        if emp_id:
+            db.collection('Empleados').document(emp_id).update(datos)
+            flash("Registro actualizado correctamente", "success")
+        else:
+            db.collection('Empleados').add(datos)
+            flash("Registro creado con éxito", "success")
+    except Exception as e:
+        flash(f"Error al procesar: {e}", "danger")
+        
     return redirect(url_for('dashboard'))
 
+# --- ELIMINACIÓN ---
 @app.route('/delete/<id>')
 def delete(id):
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -232,65 +159,109 @@ def delete(id):
     flash("Registro eliminado", "warning")
     return redirect(url_for('dashboard'))
 
-# --- CARGA MASIVA EXCEL ---
+@app.route('/delete_multiple', methods=['POST'])
+def delete_multiple():
+    if 'user' not in session: return jsonify({'status': 'error'}), 401
+    ids = request.json.get('ids', [])
+    batch = db.batch()
+    for doc_id in ids:
+        doc_ref = db.collection('Empleados').document(doc_id)
+        batch.delete(doc_ref)
+    batch.commit()
+    return jsonify({'status': 'success'})
+
+# --- EXCEL ---
 @app.route('/upload_masivo', methods=['POST'])
 def upload_masivo():
     file = request.files.get('archivo')
     if file:
-        try:
-            df = pd.read_excel(file).replace({np.nan: None})
-            batch = db.batch()
-            for _, row in df.iterrows():
-                new_doc = db.collection('Empleados').document()
-                batch.set(new_doc, {
-                    'fecha': str(row.get('Fecha') or datetime.now().strftime('%Y-%m-%d')),
-                    'nombre': clean_val(row.get('Nombre')),
-                    'apellido': clean_val(row.get('Apellido')),
-                    'cedula': clean_val(row.get('Cédula')),
-                    'num_contrato': clean_val(row.get('Contrato')),
-                    'direccion': clean_val(row.get('Dirección')),
-                    'estado': clean_val(row.get('Estado'), 'Pendiente'),
-                    'internet': safe_float(row.get('Internet')),
-                    'pago': safe_float(row.get('Pago')),
-                    'agua': safe_float(row.get('Agua')),
-                    'luz': safe_float(row.get('Luz'))
-                })
-            batch.commit()
-            flash("Carga masiva completada", "success")
-        except Exception as e:
-            flash(f"Error en carga masiva: {e}", "danger")
+        df = pd.read_excel(file).replace({np.nan: None})
+        batch = db.batch()
+        for _, row in df.iterrows():
+            new_doc = db.collection('Empleados').document()
+            batch.set(new_doc, {
+                'fecha': str(row.get('Fecha', datetime.now().strftime('%Y-%m-%d'))),
+                'nombre': str(row.get('Nombre', '')),
+                'apellido': str(row.get('Apellido', '')),
+                'pago': safe_float(row.get('Pago Total')),
+                'estado': 'Pendiente'
+            })
+        batch.commit()
+        flash("Importación exitosa", "success")
     return redirect(url_for('dashboard'))
 
-# --- EXPORTAR EXCEL ---
 @app.route('/exportar_excel')
 def exportar_excel():
-    if 'user' not in session: return redirect(url_for('login_page'))
     docs = db.collection('Empleados').stream()
-    data = []
-    for doc in docs:
-        item = doc.to_dict()
-        data.append({
-            'Fecha': item.get('fecha'),
-            'Nombre': item.get('nombre'),
-            'Apellido': item.get('apellido'),
-            'Cédula': item.get('cedula'),
-            'Contrato': item.get('num_contrato'),
-            'Dirección': item.get('direccion'),
-            'Estado': item.get('estado'),
-            'Internet': safe_float(item.get('internet')),
-            'Agua': safe_float(item.get('agua')),
-            'Luz': safe_float(item.get('luz')),
-            'Pago Total': safe_float(item.get('pago'))
-        })
+    data = [doc.to_dict() for doc in docs]
     df = pd.DataFrame(data)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Reporte')
+        df.to_excel(writer, index=False)
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                     as_attachment=True, download_name='Reporte_Pagos.xlsx')
+                     as_attachment=True, download_name=f'Reporte_{datetime.now().strftime("%Y%m%d")}.xlsx')
+
+
+
+@app.route('/reporte', methods=['GET', 'POST'])
+def reporte():
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    # Obtener todos los datos para filtros
+    docs_all = db.collection('Empleados').stream()
+    todos = [d.to_dict() for d in docs_all]
+    
+    # Extraer listas para los selectores del filtro
+    anios = sorted(list(set([re.search(r'\d{4}', d.get('fecha', '')).group() for d in todos if re.search(r'\d{4}', d.get('fecha', ''))])), reverse=True)
+    direcciones = sorted(list(set([d.get('direccion') for d in todos if d.get('direccion')])))
+
+    # Capturar filtros del formulario
+    anio_sel = request.form.get('anio', '')
+    dir_sel = request.form.get('direccion', '')
+    cont_sel = request.form.get('num_contrato', '')
+    est_sel = request.form.get('estado', '')
+
+    empleados_filtrados = []
+    totales = {'internet': 0.0, 'agua': 0.0, 'luz': 0.0, 'pago': 0.0}
+
+    for item in todos:
+        # Lógica de filtrado
+        match_anio = not anio_sel or anio_sel in item.get('fecha', '')
+        match_dir = not dir_sel or dir_sel == item.get('direccion')
+        match_cont = not cont_sel or cont_sel.lower() in str(item.get('num_contrato', '')).lower()
+        match_est = not est_sel or est_sel == item.get('estado')
+
+        if match_anio and match_dir and match_cont and match_est:
+            # Limpieza de valores para suma
+            val_int = safe_float(item.get('internet'))
+            val_agua = safe_float(item.get('agua'))
+            val_luz = safe_float(item.get('luz'))
+            val_pago = safe_float(item.get('pago'))
+            
+            item['internet'] = val_int
+            item['agua'] = val_agua
+            item['luz'] = val_luz
+            item['pago'] = val_pago
+            
+            totales['internet'] += val_int
+            totales['agua'] += val_agua
+            totales['luz'] += val_luz
+            totales['pago'] += val_pago
+            
+            empleados_filtrados.append(item)
+
+    return render_template('reporte.html', 
+                           empleados=empleados_filtrados, 
+                           totales=totales, 
+                           anios=anios, 
+                           direcciones=direcciones,
+                           anio_sel=anio_sel, 
+                           seleccionada=dir_sel, 
+                           contrato_sel=cont_sel, 
+                           estado_sel=est_sel)
+
 
 if __name__ == '__main__':
-    # Usamos el puerto que asigne el servidor o el 5000 por defecto
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
