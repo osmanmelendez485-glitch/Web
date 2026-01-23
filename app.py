@@ -95,8 +95,8 @@ def dashboard():
             item = doc.to_dict()
             item['id'] = doc.id
             item['estado'] = clean_val(item.get('estado'), 'Pendiente')
-            pago_val = safe_float(item.get('pago'))
-            item['pago'] = pago_val
+            canon_val = safe_float(item.get('canon'))
+            item['canon'] = canon_val
             
             # Formateo para búsqueda
             nombre_completo = f"{item.get('nombre','')} {item.get('apellido','')}".lower()
@@ -105,9 +105,9 @@ def dashboard():
 
             if not search_query or (search_query in nombre_completo or search_query in cedula or search_query in num_con):
                 if item['estado'] == 'Cancelado':
-                    total_recaudado += pago_val
+                    total_recaudado += canon_val
                 else:
-                    total_pendiente += pago_val
+                    total_pendiente += canon_val
                 empleados.append(item)
                 
         return render_template('index.html', empleados=empleados, search_query=search_query, 
@@ -115,41 +115,6 @@ def dashboard():
                                total_recaudado=total_recaudado, total_pendiente=total_pendiente)
     except Exception as e:
         return f"Error en Dashboard: {e}"
-
-# --- GUARDAR / EDITAR ---
-@app.route('/save', methods=['POST'])
-def save():
-    if 'user' not in session: return redirect(url_for('login_page'))
-    d = request.form
-    emp_id = d.get('id')
-    
-    datos = {
-        'fecha': d.get('fecha'),
-        'nombre': d.get('nombre'),
-        'apellido': d.get('apellido'),
-        'cedula': d.get('cedula'),
-        'num_contrato': d.get('num_contrato'),
-        'direccion': d.get('direccion'),
-        'fecha_inicio': d.get('fecha_inicio'),
-        'fecha_fin': d.get('fecha_fin'),
-        'estado': d.get('estado', 'Pendiente'),
-        'internet': safe_float(d.get('internet')),
-        'agua': safe_float(d.get('agua')),
-        'luz': safe_float(d.get('luz')),
-        'pago': safe_float(d.get('pago'))
-    }
-    
-    try:
-        if emp_id:
-            db.collection('Empleados').document(emp_id).update(datos)
-            flash("Registro actualizado correctamente", "success")
-        else:
-            db.collection('Empleados').add(datos)
-            flash("Registro creado con éxito", "success")
-    except Exception as e:
-        flash(f"Error al procesar: {e}", "danger")
-        
-    return redirect(url_for('dashboard'))
 
 # --- ELIMINACIÓN ---
 @app.route('/delete/<id>')
@@ -171,23 +136,43 @@ def delete_multiple():
     return jsonify({'status': 'success'})
 
 # --- EXCEL ---
-@app.route('/upload_masivo', methods=['POST'])
-def upload_masivo():
-    file = request.files.get('archivo')
-    if file:
-        df = pd.read_excel(file).replace({np.nan: None})
-        batch = db.batch()
-        for _, row in df.iterrows():
-            new_doc = db.collection('Empleados').document()
-            batch.set(new_doc, {
-                'fecha': str(row.get('Fecha', datetime.now().strftime('%Y-%m-%d'))),
-                'nombre': str(row.get('Nombre', '')),
-                'apellido': str(row.get('Apellido', '')),
-                'pago': safe_float(row.get('Pago Total')),
-                'estado': 'Pendiente'
-            })
-        batch.commit()
-        flash("Importación exitosa", "success")
+@app.route('/save', methods=['POST'])
+def save():
+    if 'user' not in session: return redirect(url_for('login'))
+    
+    d = request.form
+    # Convertimos a float para poder sumar, usando 0 si el campo está vacío
+    internet = float(d.get('internet', 0) or 0)
+    agua = float(d.get('agua', 0) or 0)
+    luz = float(d.get('luz', 0) or 0)
+    canon = float(d.get('canon', 0) or 0)
+
+    # Calculamos el total antes de guardar
+    total_pagar = internet + agua + luz + canon
+
+    datos = {
+        'fecha': d.get('fecha'),
+        'nombre': d.get('nombre'),
+        'apellido': d.get('apellido'),
+        'cedula': d.get('cedula'),
+        'num_contrato': d.get('num_contrato'),
+        'direccion': d.get('direccion'),
+        'internet': internet,
+        'agua': agua,
+        'luz': luz,
+        'canon': canon,
+        'total_pagar': total_pagar,  # Este campo se crea en Firebase
+        'fecha_inicio': d.get('fecha_inicio'),
+        'fecha_fin': d.get('fecha_fin'),
+        'estado': d.get('estado', 'Pendiente')
+    }
+
+    emp_id = d.get('id')
+    if emp_id:
+        db.collection('Empleados').document(emp_id).update(datos)
+    else:
+        db.collection('Empleados').add(datos)
+    
     return redirect(url_for('dashboard'))
 
 @app.route('/exportar_excel')
@@ -223,7 +208,7 @@ def reporte():
     est_sel = request.form.get('estado', '')
 
     empleados_filtrados = []
-    totales = {'internet': 0.0, 'agua': 0.0, 'luz': 0.0, 'pago': 0.0}
+    totales = {'internet': 0.0, 'agua': 0.0, 'luz': 0.0, 'canon': 0.0}
 
     for item in todos:
         # Lógica de filtrado
@@ -237,17 +222,17 @@ def reporte():
             val_int = safe_float(item.get('internet'))
             val_agua = safe_float(item.get('agua'))
             val_luz = safe_float(item.get('luz'))
-            val_pago = safe_float(item.get('pago'))
+            val_canon = safe_float(item.get('canon'))
             
             item['internet'] = val_int
             item['agua'] = val_agua
             item['luz'] = val_luz
-            item['pago'] = val_pago
+            item['canon'] = val_canon
             
             totales['internet'] += val_int
             totales['agua'] += val_agua
             totales['luz'] += val_luz
-            totales['pago'] += val_pago
+            totales['canon'] += val_canon
             
             empleados_filtrados.append(item)
 

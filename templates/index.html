@@ -70,7 +70,12 @@
                             <div class="col-md-1"><label class="small fw-bold">Internet</label><input type="number" step="0.01" name="internet" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-1"><label class="small fw-bold">Agua</label><input type="number" step="0.01" name="agua" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-1"><label class="small fw-bold">Luz</label><input type="number" step="0.01" name="luz" class="form-control form-control-sm" value="0"></div>
-                            <div class="col-md-1"><label class="small fw-bold text-success">Pago</label><input type="number" step="0.01" name="pago" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold text-success">canon</label><input type="number" step="0.01" name="canon" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-12 mt-2">
+                                <label class="small fw-bold text-primary">TOTAL CALCULADO</label>
+                                <input type="text" id="edit-total-display" class="form-control fw-bold bg-light text-center" readonly style="font-size: 1.2rem;">
+                            </div>
+                            
                             <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-primary btn-sm w-100 fw-bold">Guardar</button></div>
                         </form>
                     </div>
@@ -147,7 +152,7 @@
                             </td>
                             <td>
                                 <span class="info-main text-info">I: C$ {{ "{:,.2f}".format(emp.internet|default(0)) }}</span>
-                                <span class="info-sub fw-bold text-success">T: C$ {{ "{:,.2f}".format(emp.pago|default(0)) }}</span>
+                                <span class="info-sub fw-bold text-success">T: C$ {{ "{:,.2f}".format(emp.canon|default(0)) }}</span>
                             </td>
                             <td>
                                 <span class="badge {{ 'badge-cancelado' if emp.estado == 'Cancelado' else 'badge-pendiente' }} rounded-pill">
@@ -160,13 +165,19 @@
                                         data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
                                         data-cedula="{{ emp.cedula }}" data-num_contrato="{{ emp.num_contrato }}" 
                                         data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
-                                        data-pago="{{ emp.pago }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
+                                        data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
                                         data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
                                         data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
                                         <i class="bi bi-pencil"></i>
                                     </button>
                                     <a href="/delete/{{ emp.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar?')"><i class="bi bi-trash"></i></a>
                                 </div>
+                            </td>
+
+                            <td>
+                                {% set total_fila = (emp.internet|default(0)|float) + (emp.agua|default(0)|float) + (emp.luz|default(0)|float) + (emp.canon|default(0)|float) %}
+                                <span class="info-main text-info">I: C$ {{ "{:,.2f}".format(emp.internet|default(0)) }}</span>
+                                <span class="info-sub fw-bold text-primary">Total: C$ {{ "{:,.2f}".format(total_fila) }}</span>
                             </td>
                         </tr>
                         {% endfor %}
@@ -208,7 +219,12 @@
                     <div class="col-md-3"><label class="small fw-bold">Internet</label><input type="number" step="0.01" name="internet" id="edit-internet" class="form-control"></div>
                     <div class="col-md-3"><label class="small fw-bold">Agua</label><input type="number" step="0.01" name="agua" id="edit-agua" class="form-control"></div>
                     <div class="col-md-3"><label class="small fw-bold">Luz</label><input type="number" step="0.01" name="luz" id="edit-luz" class="form-control"></div>
-                    <div class="col-md-3"><label class="small fw-bold">Total</label><input type="number" step="0.01" name="pago" id="edit-pago" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold">canon</label><input type="number" step="0.01" name="canon" id="edit-canon" class="form-control"></div>
+                    <div class="col-md-2">
+                        <label class="small fw-bold text-primary">TOTAL</label>
+                        <input type="text" id="reg-total" class="form-control form-control-sm fw-bold bg-light" readonly value="C$ 0.00">
+                    </div>
+                               
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-warning fw-bold">Guardar Cambios</button>
@@ -235,7 +251,7 @@
             document.getElementById('edit-internet').value = getAttr('data-internet') || 0;
             document.getElementById('edit-agua').value = getAttr('data-agua') || 0;
             document.getElementById('edit-luz').value = getAttr('data-luz') || 0;
-            document.getElementById('edit-pago').value = getAttr('data-pago') || 0;
+            document.getElementById('edit-canon').value = getAttr('data-canon') || 0;
             document.getElementById('edit-fecha_inicio').value = getAttr('data-fecha_inicio');
             document.getElementById('edit-fecha_fin').value = getAttr('data-fecha_fin');
             document.getElementById('edit-estado').value = getAttr('data-estado');
@@ -268,6 +284,31 @@
                 }).then(res => { if (res.ok) window.location.reload(); });
             }
         }
+
+        function calcularTotalRegistro() {
+            const i = parseFloat(document.getElementById('reg-internet').value) || 0;
+            const a = parseFloat(document.getElementById('reg-agua').value) || 0;
+            const l = parseFloat(document.getElementById('reg-luz').value) || 0;
+            const c = parseFloat(document.getElementById('reg-canon').value) || 0;
+            const total = i + a + l + c;
+            document.getElementById('reg-total').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
+        }
+
+        function calcularTotalEdit() {
+            const i = parseFloat(document.getElementById('edit-internet').value) || 0;
+            const a = parseFloat(document.getElementById('edit-agua').value) || 0;
+            const l = parseFloat(document.getElementById('edit-luz').value) || 0;
+            const c = parseFloat(document.getElementById('edit-canon').value) || 0;
+            const total = i + a + l + c;
+            document.getElementById('edit-total-display').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
+        }
+
+            // Actualizar el total al abrir el modal de edición
+            modalEditar.addEventListener('shown.bs.modal', () => {
+                calcularTotalEdit();
+      });
+
+
     </script>
 </body>
 </html>
