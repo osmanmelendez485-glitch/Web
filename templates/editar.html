@@ -1,73 +1,118 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <title>Editar Registro</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Registro - Control de Pagos</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
+        .card { border: none; border-radius: 12px; }
+        .card-header { border-radius: 12px 12px 0 0 !important; }
+        label { font-weight: 1000; font-size: 0.85rem; color: #495057; margin-bottom: 5px; }
+    </style>
 </head>
-<body class="container mt-5">
-    <div class="card shadow">
-        <div class="card-header bg-warning text-dark">
-            <h4>Editar Empleado ID: {{ e.id }}</h4>
-        </div>
-        <div class="card-body">
-            <form action="/editar/{{ e.id }}" method="POST" class="row g-3">
-                <div class="col-md-4">
-                    <label>Fecha</label>
-                    <input type="date" name="fecha" class="form-control" value="{{ e.fecha }}" required>
+<body class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-lg">
+                <div class="card-header bg-warning py-3">
+                    <h4 class="m-0 text-dark fw-bold">
+                        <i class="bi bi-pencil-square"></i> Editar Registro: {{ e.nombre }} {{ e.apellido }}
+                    </h4>
                 </div>
-                <div class="col-md-4">
-                    <label>Nombre</label>
-                    <input type="text" name="nombre" class="form-control" value="{{ e.nombre }}" required>
+                <div class="card-body p-4">
+                    <form action="/save" method="POST" class="row g-3">
+                        <input type="hidden" name="id" value="{{ e.id }}">
+
+                        <div class="col-md-4">
+                            <label>Fecha de Registro</label>
+                            <input type="date" name="fecha" class="form-control" value="{{ e.fecha }}" required>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>NombreL</label>
+                            <input type="text" name="nombre" class="form-control" value="{{ e.nombre }}" required>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Apellido</label>
+                            <input type="text" name="apellido" class="form-control" value="{{ e.apellido }}">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Cédula / ID Identificación</label>
+                            <input type="text" name="cedula" class="form-control" value="{{ e.cedula }}" required>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Número de Contrato</label>
+                            <input type="text" name="num_contrato" class="form-control" value="{{ e.num_contrato }}">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label>Dirección / Zona</label>
+                            <select name="direccion" class="form-select">
+                                <option value="Chinandega" {% if e.direccion == 'Chinandega' %}selected{% endif %}>Chinandega</option>
+                                <option value="Miguel Jarquín" {% if e.direccion == 'Miguel Jarquín' %}selected{% endif %}>Miguel Jarquín</option>
+                                <option value="Módulo 1" {% if e.direccion == 'Módulo 1' %}selected{% endif %}>Módulo 1</option>
+                                <option value="Invercasa SAFI" {% if e.direccion == 'Invercasa SAFI' %}selected{% endif %}>Invercasa SAFI</option>
+                            </select>
+                        </div>
+
+                        <hr class="my-4 text-muted">
+                        <h5 class="fw-bold text-primary mb-3">Información de Pagos y Contrato</h5>
+
+                        <div class="col-md-3">
+                            <label>Fecha Inicio</label>
+                            <input type="date" name="fecha_inicio" class="form-control" value="{{ e.fecha_inicio }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Fecha Fin</label>
+                            <input type="date" name="fecha_fin" class="form-control" value="{{ e.fecha_fin }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Estado de Pago</label>
+                            <select name="estado" class="form-select fw-bold {% if e.estado == 'Cancelado' %}text-success{% else %}text-danger{% endif %}">
+                                <option value="Pendiente" {% if e.estado == 'Pendiente' %}selected{% endif %}>⏳ Pendiente</option>
+                                <option value="Cancelado" {% if e.estado == 'Cancelado' %}selected{% endif %}>✅ Cancelado</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Internet (C$)</label>
+                            <input type="number" step="0.01" name="internet" class="form-control" value="{{ e.internet or 0 }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Agua (C$)</label>
+                            <input type="number" step="0.01" name="agua" class="form-control" value="{{ e.agua or 0 }}">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label>Luz (C$)</label>
+                            <input type="number" step="0.01" name="luz" class="form-control" value="{{ e.luz or 0 }}">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-success fw-bold">Pago Total Acordado (C$)</label>
+                            <input type="number" step="0.01" name="pago" class="form-control border-success" value="{{ e.pago or 0 }}">
+                        </div>
+
+                        <div class="col-12 mt-5 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary px-4 fw-bold">
+                                Guardar cambios realizados
+                            </button>
+                            <a href="/dashboard" class="btn btn-outline-secondary px-4">
+                                Volver al panel principal
+                            </a>
+                        </div>
+                    </form>
                 </div>
-                <div class="col-md-4">
-                    <label>Apellido</label>
-                    <input type="text" name="apellido" class="form-control" value="{{ e.apellido }}">
-                </div>
-                <div class="col-md-4">
-                    <label>Cédula</label>
-                    <input type="text" name="cedula" class="form-control" value="{{ e.cedula }}">
-                </div>
-                <div class="col-md-4">
-                    <label>Sexo</label>
-                    <select name="sexo" class="form-select">
-                        <option value="M" {% if e.sexo == 'M' %}selected{% endif %}>Masculino</option>
-                        <option value="F" {% if e.sexo == 'F' %}selected{% endif %}>Femenino</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label>Escolaridad</label>
-                    <select name="escolaridad" class="form-select">
-                        <option value="Primaria" {% if e.escolaridad == 'Primaria' %}selected{% endif %}>Primaria</option>
-                        <option value="Secundaria" {% if e.escolaridad == 'Secundaria' %}selected{% endif %}>Secundaria</option>
-                        <option value="Universidad" {% if e.escolaridad == 'Universidad' %}selected{% endif %}>Universidad</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label>Año</label>
-                    <input type="number" name="ano" class="form-control" value="{{ e.ano_escolaridad }}">
-                </div>
-                <div class="col-md-4">
-                    <label>Dirección</label>
-                    <input type="text" name="direccion" class="form-control" value="{{ e.direccion }}">
-                </div>
-                <div class="col-md-3">
-                    <label>Ciudad</label>
-                    <input type="text" name="ciudad" class="form-control" value="{{ e.ciudad }}">
-                </div>
-                <div class="col-md-2">
-                    <label>Dependientes</label>
-                    <input type="number" name="dependientes" class="form-control" value="{{ e.dependientes }}">
-                </div>
-                <div class="col-md-3">
-                    <label>Salario</label>
-                    <input type="number" step="0.01" name="salario" class="form-control" value="{{ e.salario }}">
-                </div>
-                
-                <div class="col-12 mt-4">
-                    <button type="submit" class="btn btn-primary">Actualizar Cambios</button>
-                    <a href="/dashboard" class="btn btn-secondary">Cancelar</a>
-                </div>
-            </form>
+            </div>
+            <p class="text-center mt-3 text-muted small">ID de documento: <code class="user-select-all">{{ e.id }}</code></p>
         </div>
     </div>
 </body>
