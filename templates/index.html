@@ -24,7 +24,7 @@
 
     <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
         <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">Control de Pagos y Contratos</span>
+            <span class="navbar-brand mb-0 h1">Contratos</span>
             <div class="d-flex align-items-center">
                 <a href="/logout" class="btn btn-outline-light btn-sm">Cerrar Sesión</a>
             </div>
@@ -67,10 +67,11 @@
                                     <option value="Modulo 1">Modulo 2</option>
                                 </select>
                             </div>
-                            <div class="col-md-1"><label class="small fw-bold">Internet</label><input type="number" step="0.01" name="internet" class="form-control form-control-sm" value="0"></div>
-                            <div class="col-md-1"><label class="small fw-bold">Agua</label><input type="number" step="0.01" name="agua" class="form-control form-control-sm" value="0"></div>
-                            <div class="col-md-1"><label class="small fw-bold">Luz</label><input type="number" step="0.01" name="luz" class="form-control form-control-sm" value="0"></div>
-                            <div class="col-md-1"><label class="small fw-bold text-success">canon</label><input type="number" step="0.01" name="canon" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Internet</label><input type="number" step="0.01" name="internet" id="reg-internet" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Agua</label><input type="number" step="0.01" name="agua" id="reg-agua" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Luz</label><input type="number" step="0.01" name="luz" id="reg-luz" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Equipo</label><input type="number" step="0.01" name="equipo" id="reg-equipo" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold text-success">Canon</label><input type="number" step="0.01" name="canon" id="reg-canon" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-12 mt-2">
                                 <label class="small fw-bold text-primary">TOTAL CALCULADO</label>
                                 <input type="text" id="edit-total-display" class="form-control fw-bold bg-light text-center" readonly style="font-size: 1.2rem;">
@@ -134,7 +135,8 @@
                             <th>Contrato / Zona</th>
                             <th>Internet / Total</th>
                             <th>Estado</th>
-                            <th>Acciones</th> 
+                            <th>Acciones</th>
+                            <th>Total</th> 
                             </tr>
                     </thead>
                     <tbody>
@@ -176,7 +178,6 @@
 
                             <td>
                                 {% set total_fila = (emp.internet|default(0)|float) + (emp.agua|default(0)|float) + (emp.luz|default(0)|float) + (emp.canon|default(0)|float) %}
-                                <span class="info-main text-info">I: C$ {{ "{:,.2f}".format(emp.internet|default(0)) }}</span>
                                 <span class="info-sub fw-bold text-primary">Total: C$ {{ "{:,.2f}".format(total_fila) }}</span>
                             </td>
                         </tr>
@@ -234,7 +235,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+        <script>
         const modalEditar = document.getElementById('modalEditar');
         modalEditar.addEventListener('show.bs.modal', event => {
             const button = event.relatedTarget;
@@ -252,6 +253,7 @@
             document.getElementById('edit-agua').value = getAttr('data-agua') || 0;
             document.getElementById('edit-luz').value = getAttr('data-luz') || 0;
             document.getElementById('edit-canon').value = getAttr('data-canon') || 0;
+            document.getElementById('edit-equipos').value = getAttr('data-equipo') || 0;
             document.getElementById('edit-fecha_inicio').value = getAttr('data-fecha_inicio');
             document.getElementById('edit-fecha_fin').value = getAttr('data-fecha_fin');
             document.getElementById('edit-estado').value = getAttr('data-estado');
@@ -285,29 +287,43 @@
             }
         }
 
+        // Función para el formulario de REGISTRO (Superior)
         function calcularTotalRegistro() {
             const i = parseFloat(document.getElementById('reg-internet').value) || 0;
             const a = parseFloat(document.getElementById('reg-agua').value) || 0;
             const l = parseFloat(document.getElementById('reg-luz').value) || 0;
             const c = parseFloat(document.getElementById('reg-canon').value) || 0;
-            const total = i + a + l + c;
-            document.getElementById('reg-total').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
+            const e = parseFloat(document.getElementById('reg-equipo').value) || 0; // Cambiado 'b' por 'e' de equipo
+            const total = i + a + l + c + e;
+            document.getElementById('edit-total-display').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
         }
 
+        // Función para el formulario de EDICIÓN (Modal)
         function calcularTotalEdit() {
             const i = parseFloat(document.getElementById('edit-internet').value) || 0;
             const a = parseFloat(document.getElementById('edit-agua').value) || 0;
             const l = parseFloat(document.getElementById('edit-luz').value) || 0;
             const c = parseFloat(document.getElementById('edit-canon').value) || 0;
-            const total = i + a + l + c;
-            document.getElementById('edit-total-display').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
+            const e = parseFloat(document.getElementById('edit-equipo')?.value) || 0; 
+            const total = i + a + l + c + e;
+            document.getElementById('reg-total').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
         }
 
-            // Actualizar el total al abrir el modal de edición
+        // ESCUCHADORES PARA REGISTRO
+        document.querySelectorAll('#reg-internet, #reg-agua, #reg-luz, #reg-canon, #reg-equipo').forEach(input => {
+            input.addEventListener('input', calcularTotalRegistro);
+        });
+
+        // ESCUCHADORES PARA MODAL
+        document.querySelectorAll('#edit-internet, #edit-agua, #edit-luz, #edit-canon, #edit-equipo').forEach(input => {
+            input.addEventListener('input', calcularTotalEdit);
+        });
+
+                   // Actualizar el total al abrir el modal de edición
             modalEditar.addEventListener('shown.bs.modal', () => {
                 calcularTotalEdit();
-      });
-
+         })
+       
 
     </script>
 </body>

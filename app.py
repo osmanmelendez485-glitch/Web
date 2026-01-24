@@ -146,9 +146,10 @@ def save():
     agua = float(d.get('agua', 0) or 0)
     luz = float(d.get('luz', 0) or 0)
     canon = float(d.get('canon', 0) or 0)
-
+    equipo = float(d.get('equipo', 0) or 0)
+    
     # Calculamos el total antes de guardar
-    total_pagar = internet + agua + luz + canon
+    total_pagar = internet + agua + luz + canon + equipo
 
     datos = {
         'fecha': d.get('fecha'),
@@ -223,16 +224,19 @@ def reporte():
             val_agua = safe_float(item.get('agua'))
             val_luz = safe_float(item.get('luz'))
             val_canon = safe_float(item.get('canon'))
+            val_equipo = safe_float(item.get('equipo'))
             
             item['internet'] = val_int
             item['agua'] = val_agua
             item['luz'] = val_luz
             item['canon'] = val_canon
+            item['equipo'] = val_equipo
             
             totales['internet'] += val_int
             totales['agua'] += val_agua
             totales['luz'] += val_luz
             totales['canon'] += val_canon
+            totales['equipo'] += val_equipo
             
             empleados_filtrados.append(item)
 
