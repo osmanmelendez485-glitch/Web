@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Propiedades | Sistema de Gestión</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f4f7f6; }
+        .property-card {
+            border: none;
+            border-radius: 20px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            background: white;
+        }
+        .property-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        .img-wrapper {
+            height: 250px;
+            position: relative;
+        }
+        .img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .overlay-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            padding: 5px 15px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-5">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-primary" href="#">MiGestión Inmobiliaria</a>
+            <div class="d-flex">
+                <a href="/dashboard" class="btn btn-primary btn-sm rounded-pill px-4">Administrar Datos</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12 text-center">
+                <h1 class="fw-bold">Seleccione una Propiedad</h1>
+                <p class="text-muted">Haga clic para ver el resumen del contrato vigente</p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            {% for nombre_dir, datos in propiedades.items() %}
+            <div class="col-md-4">
+                <div class="property-card" onclick="mostrarResumen('{{ datos.nombre }}', '{{ datos.apellido }}', '{{ nombre_dir }}', '{{ datos.canon }}', '{{ datos.num_contrato }}', '{{ datos.fecha_fin }}', '{{ datos.estado }}')">
+                    <div class="img-wrapper">
+                        <div class="overlay-status {{ 'bg-success' if datos.estado == 'Cancelado' else 'bg-danger' }}">
+                            {{ 'OCUPADO' if datos.estado == 'Cancelado' else 'PENDIENTE PAGO' }}
+                        </div>
+                        <img src="https://source.unsplash.com/500x400/?building,house&sig={{ loop.index }}" alt="Propiedad">
+                    </div>
+                    <div class="p-4 text-center">
+                        <h4 class="fw-bold mb-1">{{ nombre_dir }}</h4>
+                        <p class="text-muted small mb-0"><i class="bi bi-geo-alt"></i> Ver detalles del contrato</p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="modal fade" id="resumenModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 rounded-4">
+                <div class="modal-header bg-dark text-white border-0 py-3">
+                    <h5 class="modal-title fw-bold">Contrato Actual</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center mb-4">
+                        <h3 id="modal-direccion" class="fw-bold text-primary"></h3>
+                        <hr class="mx-auto w-25">
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="small text-muted d-block">Arrendatario</label>
+                            <span id="modal-inquilino" class="fw-bold"></span>
+                        </div>
+                        <div class="col-6">
+                            <label class="small text-muted d-block">No. Contrato</label>
+                            <span id="modal-num" class="fw-bold"></span>
+                        </div>
+                        <div class="col-6">
+                            <label class="small text-muted d-block">Canon Mensual</label>
+                            <span id="modal-monto" class="fw-bold text-success"></span>
+                        </div>
+                        <div class="col-6">
+                            <label class="small text-muted d-block">Vencimiento</label>
+                            <span id="modal-fin" class="fw-bold text-danger"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const modal = new bootstrap.Modal(document.getElementById('resumenModal'));
+
+        function mostrarResumen(nombre, apellido, direccion, canon, num, fin, estado) {
+            document.getElementById('modal-direccion').innerText = direccion;
+            document.getElementById('modal-inquilino').innerText = nombre + ' ' + apellido;
+            document.getElementById('modal-num').innerText = num || 'N/A';
+            document.getElementById('modal-monto').innerText = 'C$ ' + parseFloat(canon).toLocaleString();
+            document.getElementById('modal-fin').innerText = fin || 'Indefinido';
+            
+            modal.show();
+        }
+    </script>
+</body>
+</html>
