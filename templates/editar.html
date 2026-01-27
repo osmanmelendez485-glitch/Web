@@ -27,7 +27,8 @@
                 <div class="card-body p-4">
                     <form action="/save" method="POST" class="row g-3" enctype="multipart/form-data">
                         <input type="hidden" name="id" value="{{ e.id }}">
-
+                        <input type="file" name="imagen_archivo" class="form-control" accept="image/*">
+                        
                         <div class="col-md-4">
                             <label>Fecha de Registro</label>
                             <input type="date" name="fecha" class="form-control" value="{{ e.fecha }}" required>
@@ -52,7 +53,7 @@
                             <label>Número de Contrato</label>
                             <input type="text" name="num_contrato" class="form-control" value="{{ e.num_contrato }}">
                         </div>
-
+                        
                         <div class="col-md-4">
                             <label>Dirección / Zona</label>
                             <select name="direccion" class="form-select">
@@ -133,7 +134,7 @@
                             </div>
                             <small class="text-muted italic">* Este total no incluye el depósito inicial.</small>
                         </div>
-
+                        
                         <div class="col-12 mt-5 d-flex gap-2">
                             <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold" onclick="this.innerHTML='Guardando...';">
                                 <i class="bi bi-save"></i> Guardar Cambios
@@ -142,6 +143,8 @@
                                 Cancelar
                             </a>
                         </div>
+
+
                     </form>
                 </div>
             </div>

@@ -192,7 +192,14 @@
                     <div class="col-md-3"><label class="small fw-bold">Equipo</label><input type="number" step="0.01" name="equipo" id="edit-equipo" class="form-control"></div>
                     <div class="col-md-3"><label class="small fw-bold text-success">Canon</label><input type="number" step="0.01" name="canon" id="edit-canon" class="form-control"></div>
                     <div class="col-md-3"><label class="small fw-bold text-primary">Depósito</label><input type="number" step="0.01" name="deposito" id="edit-deposito" class="form-control"></div>
-                    
+                    <div class="col-md-12 mt-3">
+                        <label class="text-primary fw-bold">Actualizar Foto de la Propiedad</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-camera"></i></span>
+                            <input type="file" name="imagen_archivo" class="form-control" accept="image/*">
+                        </div>
+                        <small class="text-muted">Si no seleccionas un archivo, se mantendrá la foto actual.</small>
+                    </div>
                     <div class="col-md-12 text-center border-top pt-3">
                         <label class="fw-bold text-primary">TOTAL MENSUAL (Sin Depósito)</label>
                         <h3 id="edit-total-val" class="fw-bold">C$ 0.00</h3>
