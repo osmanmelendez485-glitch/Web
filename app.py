@@ -226,6 +226,59 @@ def propiedades():
             propiedades_dict[dir_name] = item
     return render_template('propiedades.html', propiedades=propiedades_dict)
 
+
+@app.route('/resumen_propiedades', methods=['GET', 'POST'])
+def resumen_propiedades():
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    # Obtener fechas del filtro (por defecto el mes actual)
+    fecha_desde = request.form.get('desde', datetime.now().strftime('%Y-%m-01'))
+    fecha_hasta = request.form.get('hasta', datetime.now().strftime('%Y-%m-%d'))
+    
+    docs_empleados = db.collection('Empleados').stream()
+    resumen = []
+
+    for emp in docs_empleados:
+        e_data = emp.to_dict()
+        e_id = emp.id
+        
+        # Consultar subcolección de pagos filtrada por fecha
+        # Nota: La comparación de strings funciona bien con formato YYYY-MM-DD
+        pagos_query = db.collection('Empleados').document(e_id).collection('Pagos')\
+            .where('fecha_vencimiento', '>=', fecha_desde)\
+            .where('fecha_vencimiento', '<=', fecha_hasta).stream()
+            
+        acumulado_propiedad = 0.0
+        recaudado_propiedad = 0.0
+        pendiente_propiedad = 0.0
+        
+        for p in pagos_query:
+            p_data = p.to_dict()
+            monto = safe_float(p_data.get('monto', 0))
+            estado = p_data.get('estado', 'Pendiente')
+            
+            if estado == 'Cancelado':
+                recaudado_propiedad += monto
+            elif estado == 'Pendiente':
+                pendiente_propiedad += monto
+            
+            acumulado_propiedad += monto
+
+        if acumulado_propiedad > 0: # Solo mostrar si hay pagos en ese rango
+            resumen.append({
+                'direccion': e_data.get('direccion', 'Sin Dirección'),
+                'inquilino': f"{e_data.get('nombre')} {e_data.get('apellido')}",
+                'total': acumulado_propiedad,
+                'recaudado': recaudado_propiedad,
+                'pendiente': pendiente_propiedad
+            })
+
+    return render_template('resumen_acumulado.html', 
+                           resumen=resumen, 
+                           desde=fecha_desde, 
+                           hasta=fecha_hasta)
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
