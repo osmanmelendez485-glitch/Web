@@ -16,8 +16,6 @@
         .info-sub { display: block; font-size: 0.82rem; color: #6c757d; }
         .badge-cancelado { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; font-weight: 600; }
         .badge-pendiente { background-color: #ffeded; color: #dc3545; border: 1px solid #dc3545; font-weight: 600; }
-        .card-stats { transition: transform 0.2s; border: none; }
-        .card-stats:hover { transform: translateY(-5px); }
     </style>
 </head>
 <body>
@@ -26,6 +24,7 @@
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">Contratos</span>
             <div class="d-flex align-items-center">
+                <a href="/propiedades" class="btn btn-outline-info btn-sm me-2"><i class="bi bi-houses"></i> Ver Galería</a>
                 <a href="/logout" class="btn btn-outline-light btn-sm">Cerrar Sesión</a>
             </div>
         </div>
@@ -44,19 +43,27 @@
         {% endwith %}
 
         <div class="row">
-            <div class="col-lg-9">
+            <div class="col-lg-12">
                 <div class="card mb-4 border-0 shadow-sm">
                     <div class="card-header bg-white fw-bold text-uppercase small">Registrar Contrato</div>
                     <div class="card-body">
-                        <form action="/save" method="POST" class="row g-3">
+                        <form action="/save" method="POST" class="row g-3" enctype="multipart/form-data" onsubmit="document.getElementById('btnGuardar').disabled=true;">
                             <div class="col-md-2"><label class="small fw-bold">Fecha</label><input type="date" name="fecha" class="form-control form-control-sm" required value="{{ now.strftime('%Y-%m-%d') }}"></div>
                             <div class="col-md-2"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" class="form-control form-control-sm" required></div>
                             <div class="col-md-2"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" class="form-control form-control-sm"></div>
                             <div class="col-md-2"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" class="form-control form-control-sm" required></div>
                             <div class="col-md-2"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" class="form-control form-control-sm"></div>
-                            <div class="col-md-2"><label class="small fw-bold">fecha_inicio</label><input type="date" name="fecha_inicio" class="form-control form-control-sm" required value="{{ now.strftime('%Y-%m-%d') }}"></div>
-                            <div class="col-md-2"><label class="small fw-bold">fecha_fin</label><input type="date" name="fecha_fin" class="form-control form-control-sm" required value="{{ now.strftime('%Y-%m-%d') }}"></div>
-                                                     
+                            <div class="col-md-2"><label class="small fw-bold">Inicio</label><input type="date" name="fecha_inicio" class="form-control form-control-sm" required></div>
+                            <div class="col-md-2"><label class="small fw-bold">Fin</label><input type="date" name="fecha_fin" class="form-control form-control-sm" required></div>
+                            
+                            <div class="col-md-2">
+                                <label class="small fw-bold text-primary">Foto Propiedad</label>
+                                <input type="file" name="imagen_archivo" class="form-control form-control-sm" accept="image/*">
+                            </div>
+                            <div class="col-md-1">
+                                <label class="small fw-bold text-primary">Depósito</label>
+                                <input type="number" step="0.01" name="deposito" id="reg-deposito" class="form-control form-control-sm" value="0">
+                            </div>
                             <div class="col-md-2">
                                 <label class="small fw-bold">Dirección</label>
                                 <select name="direccion" class="form-select form-select-sm">
@@ -64,7 +71,7 @@
                                     <option value="Miguel Jarquín">Miguel Jarquín</option>
                                     <option value="Invercasa SAFI">Invercasa SAFI</option>
                                     <option value="Modulo 1">Modulo 1</option>
-                                    <option value="Modulo 1">Modulo 2</option>
+                                    <option value="Modulo 2">Modulo 2</option>
                                 </select>
                             </div>
                             <div class="col-md-1"><label class="small fw-bold">Internet</label><input type="number" step="0.01" name="internet" id="reg-internet" class="form-control form-control-sm" value="0"></div>
@@ -72,72 +79,34 @@
                             <div class="col-md-1"><label class="small fw-bold">Luz</label><input type="number" step="0.01" name="luz" id="reg-luz" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-1"><label class="small fw-bold">Equipo</label><input type="number" step="0.01" name="equipo" id="reg-equipo" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-1"><label class="small fw-bold text-success">Canon</label><input type="number" step="0.01" name="canon" id="reg-canon" class="form-control form-control-sm" value="0"></div>
-                            <div class="col-md-12 mt-2">
-                                <label class="small fw-bold text-primary">TOTAL CALCULADO</label>
-                                <input type="text" id="edit-total-display" class="form-control fw-bold bg-light text-center" readonly style="font-size: 1.2rem;">
+                            
+                            <div class="col-md-2">
+                                <label class="small fw-bold text-primary">TOTAL INICIAL</label>
+                                <input type="text" id="reg-total-display" class="form-control fw-bold bg-light text-center" readonly value="C$ 0.00">
                             </div>
                             
-                            <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-primary btn-sm w-100 fw-bold">Guardar</button></div>
+                            <div class="col-md-1 d-flex align-items-end">
+                                <button type="submit" id="btnGuardar" class="btn btn-primary btn-sm w-100 fw-bold">Guardar</button>
+                            </div>
                         </form>
                     </div>
-                </div>
-            </div>
-
-            <div class="col-lg-3">
-                <div class="card mb-4 border-0 shadow-sm text-center">
-                    <div class="card-header bg-success text-white fw-bold small">CARGA MASIVA</div>
-                    <div class="card-body">
-                        <form action="/upload_masivo" method="POST" enctype="multipart/form-data">
-                            <input type="file" name="archivo" class="form-control form-control-sm my-2" required accept=".xlsx, .xls">
-                            <button class="btn btn-success btn-sm w-100 fw-bold">Subir Excel</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card card-stats shadow-sm p-3">
-                    <h6 class="text-muted small fw-bold">RECAUDADO</h6>
-                    <h4 class="text-success fw-bold">C$ {{ "{:,.2f}".format(total_recaudado) }}</h4>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card card-stats shadow-sm p-3">
-                    <h6 class="text-muted small fw-bold">PENDIENTE</h6>
-                    <h4 class="text-danger fw-bold">C$ {{ "{:,.2f}".format(total_pendiente) }}</h4>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card card-stats shadow-sm p-3 bg-primary text-white">
-                    <h6 class="small fw-bold">CARTERA TOTAL</h6>
-                    <h4 class="fw-bold">C$ {{ "{:,.2f}".format(total_recaudado + total_pendiente) }}</h4>
                 </div>
             </div>
         </div>
 
         <div class="table-container shadow-sm">
-            <div class="d-flex justify-content-between mb-3">
-                <button id="btnEliminarMasivo" onclick="eliminarSeleccionados()" class="btn btn-sm btn-danger fw-bold">
-                    Eliminar Seleccionados (<span id="countSelected">0</span>)
-                </button>
-                <a href="/exportar_excel" class="btn btn-sm btn-outline-success fw-bold">Exportar Excel</a>
-            </div>
-
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead class="table-light small">
                         <tr>
                             <th><input type="checkbox" id="checkAll" onclick="toggleAll(this)" class="form-check-input"></th>
                             <th>Fecha</th> 
-                            <th>Nombre / cedula</th>
+                            <th>Nombre / Cédula</th>
                             <th>Contrato / Zona</th>
-                            <th>Internet / Total</th>
+                            <th>Total Mes</th>
                             <th>Estado</th>
-                            <th>Acciones</th>
-                            <th>Total</th> 
-                            </tr>
+                            <th class="text-center">Acciones</th>
+                        </tr>
                     </thead>
                     <tbody>
                         {% for emp in empleados %}
@@ -153,8 +122,9 @@
                                 <span class="info-sub">{{ emp.direccion }}</span>
                             </td>
                             <td>
-                                <span class="info-main text-info">I: C$ {{ "{:,.2f}".format(emp.internet|default(0)) }}</span>
-                                <span class="info-sub fw-bold text-success">T: C$ {{ "{:,.2f}".format(emp.canon|default(0)) }}</span>
+                                {% set total_fila = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
+                                <span class="info-main text-dark">C$ {{ "{:,.2f}".format(total_fila) }}</span>
+                                <span class="info-sub text-muted">Monto recurrente</span>
                             </td>
                             <td>
                                 <span class="badge {{ 'badge-cancelado' if emp.estado == 'Cancelado' else 'badge-pendiente' }} rounded-pill">
@@ -162,23 +132,20 @@
                                 </span>
                             </td>
                             <td>
-                                <div class="btn-group">
+                                <div class="btn-group w-100">
                                     <button class="btn btn-sm btn-edit" data-bs-toggle="modal" data-bs-target="#modalEditar"
                                         data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
                                         data-cedula="{{ emp.cedula }}" data-num_contrato="{{ emp.num_contrato }}" 
                                         data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
                                         data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
+                                        data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
                                         data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
                                         data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
                                         <i class="bi bi-pencil"></i>
                                     </button>
+                                    <a href="/ver_pagos/{{ emp.id }}" class="btn btn-sm btn-info text-white"><i class="bi bi-calendar-check-fill"></i></a>
                                     <a href="/delete/{{ emp.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar?')"><i class="bi bi-trash"></i></a>
                                 </div>
-                            </td>
-
-                            <td>
-                                {% set total_fila = (emp.internet|default(0)|float) + (emp.agua|default(0)|float) + (emp.luz|default(0)|float) + (emp.canon|default(0)|float) %}
-                                <span class="info-sub fw-bold text-primary">Total: C$ {{ "{:,.2f}".format(total_fila) }}</span>
                             </td>
                         </tr>
                         {% endfor %}
@@ -190,7 +157,7 @@
 
     <div class="modal fade" id="modalEditar" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <form action="/save" method="POST" class="modal-content">
+            <form action="/save" method="POST" class="modal-content" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
                 <div class="modal-header bg-warning">
                     <h5 class="modal-title fw-bold">Editar Registro</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -202,14 +169,16 @@
                     <div class="col-md-4"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" id="edit-apellido" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" id="edit-cedula" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Inicio Contrato</label><input type="date" name="fecha_inicio" id="edit-fecha_inicio" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">Fin Contrato</label><input type="date" name="fecha_fin" id="edit-fecha_fin" class="form-control"></div>
+                    
                     <div class="col-md-4">
                         <label class="small fw-bold">Direccion</label>
                         <select name="direccion" id="edit-direccion" class="form-select">
                             <option value="Miguel Jarquín">Miguel Jarquín</option>    
                             <option value="Chinandega">Chinandega</option>
+                            <option value="Invercasa SAFI">Invercasa SAFI</option>
                         </select>
                     </div> 
-                    <div class="col-md-4"><label class="small fw-bold">Fin Contrato</label><input type="date" name="fecha_fin" id="edit-fecha_fin" class="form-control"></div>
                     <div class="col-md-4">  
                         <label class="small fw-bold">Estado</label>
                         <select name="estado" id="edit-estado" class="form-select">
@@ -220,12 +189,14 @@
                     <div class="col-md-3"><label class="small fw-bold">Internet</label><input type="number" step="0.01" name="internet" id="edit-internet" class="form-control"></div>
                     <div class="col-md-3"><label class="small fw-bold">Agua</label><input type="number" step="0.01" name="agua" id="edit-agua" class="form-control"></div>
                     <div class="col-md-3"><label class="small fw-bold">Luz</label><input type="number" step="0.01" name="luz" id="edit-luz" class="form-control"></div>
-                    <div class="col-md-3"><label class="small fw-bold">canon</label><input type="number" step="0.01" name="canon" id="edit-canon" class="form-control"></div>
-                    <div class="col-md-2">
-                        <label class="small fw-bold text-primary">TOTAL</label>
-                        <input type="text" id="reg-total" class="form-control form-control-sm fw-bold bg-light" readonly value="C$ 0.00">
+                    <div class="col-md-3"><label class="small fw-bold">Equipo</label><input type="number" step="0.01" name="equipo" id="edit-equipo" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold text-success">Canon</label><input type="number" step="0.01" name="canon" id="edit-canon" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold text-primary">Depósito</label><input type="number" step="0.01" name="deposito" id="edit-deposito" class="form-control"></div>
+                    
+                    <div class="col-md-12 text-center border-top pt-3">
+                        <label class="fw-bold text-primary">TOTAL MENSUAL (Sin Depósito)</label>
+                        <h3 id="edit-total-val" class="fw-bold">C$ 0.00</h3>
                     </div>
-                               
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-warning fw-bold">Guardar Cambios</button>
@@ -235,30 +206,55 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-        <script>
+    <script>
         const modalEditar = document.getElementById('modalEditar');
         modalEditar.addEventListener('show.bs.modal', event => {
             const button = event.relatedTarget;
             const getAttr = (attr) => {
                 const val = button.getAttribute(attr);
-                return (val && val !== "None" && val !== "nan") ? val : "";
+                return (val && val !== "None" && val !== "nan") ? val : "0";
             };
 
-            document.getElementById('edit-id').value = getAttr('data-id');
-            document.getElementById('edit-fecha').value = getAttr('data-fecha');
-            document.getElementById('edit-nombre').value = getAttr('data-nombre');
-            document.getElementById('edit-apellido').value = getAttr('data-apellido');
-            document.getElementById('edit-direccion').value = getAttr('data-direccion');
-            document.getElementById('edit-internet').value = getAttr('data-internet') || 0;
-            document.getElementById('edit-agua').value = getAttr('data-agua') || 0;
-            document.getElementById('edit-luz').value = getAttr('data-luz') || 0;
-            document.getElementById('edit-canon').value = getAttr('data-canon') || 0;
-            document.getElementById('edit-equipos').value = getAttr('data-equipo') || 0;
-            document.getElementById('edit-fecha_inicio').value = getAttr('data-fecha_inicio');
-            document.getElementById('edit-fecha_fin').value = getAttr('data-fecha_fin');
-            document.getElementById('edit-estado').value = getAttr('data-estado');
-            document.getElementById('edit-cedula').value = getAttr('data-cedula');
+            document.getElementById('edit-id').value = button.getAttribute('data-id');
+            document.getElementById('edit-fecha').value = button.getAttribute('data-fecha');
+            document.getElementById('edit-nombre').value = button.getAttribute('data-nombre');
+            document.getElementById('edit-apellido').value = button.getAttribute('data-apellido');
+            document.getElementById('edit-direccion').value = button.getAttribute('data-direccion');
+            document.getElementById('edit-internet').value = getAttr('data-internet');
+            document.getElementById('edit-agua').value = getAttr('data-agua');
+            document.getElementById('edit-luz').value = getAttr('data-luz');
+            document.getElementById('edit-canon').value = getAttr('data-canon');
+            document.getElementById('edit-equipo').value = getAttr('data-equipo');
+            document.getElementById('edit-deposito').value = getAttr('data-deposito');
+            document.getElementById('edit-fecha_inicio').value = button.getAttribute('data-fecha_inicio');
+            document.getElementById('edit-fecha_fin').value = button.getAttribute('data-fecha_fin');
+            document.getElementById('edit-estado').value = button.getAttribute('data-estado');
+            document.getElementById('edit-cedula').value = button.getAttribute('data-cedula');
+            
+            setTimeout(calcularTotalEdit, 100);
         });
+
+        function calcularTotalRegistro() {
+            const fields = ['reg-internet', 'reg-agua', 'reg-luz', 'reg-canon', 'reg-equipo', 'reg-deposito'];
+            let total = 0;
+            fields.forEach(id => {
+                total += parseFloat(document.getElementById(id).value) || 0;
+            });
+            document.getElementById('reg-total-display').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
+        }
+
+        function calcularTotalEdit() {
+            const fields = ['edit-internet', 'edit-agua', 'edit-luz', 'edit-canon', 'edit-equipo'];
+            let total = 0;
+            fields.forEach(id => {
+                total += parseFloat(document.getElementById(id).value) || 0;
+            });
+            document.getElementById('edit-total-val').innerText = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
+        }
+
+        // Escuchadores para cálculos en tiempo real
+        document.querySelectorAll('[id^="reg-"]').forEach(inp => inp.addEventListener('input', calcularTotalRegistro));
+        document.querySelectorAll('[id^="edit-"]').forEach(inp => inp.addEventListener('input', calcularTotalEdit));
 
         function toggleAll(source) {
             const checkboxes = document.querySelectorAll('.select-item');
@@ -271,60 +267,9 @@
 
         function updateUI() {
             const selected = document.querySelectorAll('.select-item:checked');
-            document.getElementById('btnEliminarMasivo').style.display = selected.length > 0 ? 'block' : 'none';
-            document.getElementById('countSelected').innerText = selected.length;
+            const btn = document.getElementById('btnEliminarMasivo');
+            if(btn) btn.style.display = selected.length > 0 ? 'block' : 'none';
         }
-
-        function eliminarSeleccionados() {
-            const selected = document.querySelectorAll('.select-item:checked');
-            const ids = Array.from(selected).map(cb => cb.value);
-            if (confirm(`¿Eliminar ${ids.length} registros?`)) {
-                fetch('/delete_multiple', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: ids })
-                }).then(res => { if (res.ok) window.location.reload(); });
-            }
-        }
-
-        // Función para el formulario de REGISTRO (Superior)
-        function calcularTotalRegistro() {
-            const i = parseFloat(document.getElementById('reg-internet').value) || 0;
-            const a = parseFloat(document.getElementById('reg-agua').value) || 0;
-            const l = parseFloat(document.getElementById('reg-luz').value) || 0;
-            const c = parseFloat(document.getElementById('reg-canon').value) || 0;
-            const e = parseFloat(document.getElementById('reg-equipo').value) || 0; // Cambiado 'b' por 'e' de equipo
-            const total = i + a + l + c + e;
-            document.getElementById('edit-total-display').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
-        }
-
-        // Función para el formulario de EDICIÓN (Modal)
-        function calcularTotalEdit() {
-            const i = parseFloat(document.getElementById('edit-internet').value) || 0;
-            const a = parseFloat(document.getElementById('edit-agua').value) || 0;
-            const l = parseFloat(document.getElementById('edit-luz').value) || 0;
-            const c = parseFloat(document.getElementById('edit-canon').value) || 0;
-            const e = parseFloat(document.getElementById('edit-equipo')?.value) || 0; 
-            const total = i + a + l + c + e;
-            document.getElementById('reg-total').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
-        }
-
-        // ESCUCHADORES PARA REGISTRO
-        document.querySelectorAll('#reg-internet, #reg-agua, #reg-luz, #reg-canon, #reg-equipo').forEach(input => {
-            input.addEventListener('input', calcularTotalRegistro);
-        });
-
-        // ESCUCHADORES PARA MODAL
-        document.querySelectorAll('#edit-internet, #edit-agua, #edit-luz, #edit-canon, #edit-equipo').forEach(input => {
-            input.addEventListener('input', calcularTotalEdit);
-        });
-
-                   // Actualizar el total al abrir el modal de edición
-            modalEditar.addEventListener('shown.bs.modal', () => {
-                calcularTotalEdit();
-         })
-       
-
     </script>
 </body>
 </html>

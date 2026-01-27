@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from io import BytesIO
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 import firebase_admin
@@ -135,22 +136,28 @@ def delete_multiple():
     batch.commit()
     return jsonify({'status': 'success'})
 
-# --- EXCEL ---
+
+import os
+from werkzeug.utils import secure_filename
+
 @app.route('/save', methods=['POST'])
 def save():
-    if 'user' not in session: return redirect(url_for('login'))
+    if 'user' not in session: return redirect(url_for('login_page'))
     
     d = request.form
-    # Convertimos a float para poder sumar, usando 0 si el campo está vacío
-    internet = float(d.get('internet', 0) or 0)
-    agua = float(d.get('agua', 0) or 0)
-    luz = float(d.get('luz', 0) or 0)
-    canon = float(d.get('canon', 0) or 0)
-    equipo = float(d.get('equipo', 0) or 0)
+    emp_id = d.get('id') # ID proveniente del modal de edición
     
-    # Calculamos el total antes de guardar
-    total_pagar = internet + agua + luz + canon + equipo
+    # conversion de valores numericos
+    internet = safe_float(d.get('internet'))
+    agua = safe_float(d.get('agua'))
+    luz = safe_float(d.get('luz'))
+    canon = safe_float(d.get('canon'))
+    equipo = safe_float(d.get('equipo'))
+    deposito = safe_float(d.get('deposito'))
 
+    total_mensual = internet + agua + luz + canon + equipo
+
+    # 1. Preparar Diccionario de Datos base
     datos = {
         'fecha': d.get('fecha'),
         'nombre': d.get('nombre'),
@@ -162,18 +169,64 @@ def save():
         'agua': agua,
         'luz': luz,
         'canon': canon,
-        'total_pagar': total_pagar,  # Este campo se crea en Firebase
+        'equipo': equipo,
+        'deposito': deposito,
+        'total_pagar': total_mensual, # Monto base recurrente
         'fecha_inicio': d.get('fecha_inicio'),
         'fecha_fin': d.get('fecha_fin'),
         'estado': d.get('estado', 'Pendiente')
     }
 
-    emp_id = d.get('id')
+    # 2. Manejo de Imagen
+    if 'imagen_archivo' in request.files:
+        file = request.files['imagen_archivo']
+        if file.filename != '':
+            filename = secure_filename(file.filename)
+            upload_path = os.path.join('static', 'uploads')
+            if not os.path.exists(upload_path): os.makedirs(upload_path)
+            file.save(os.path.join(upload_path, filename))
+            datos['foto_url'] = f'/static/uploads/{filename}'
+
+    # 3. LÓGICA DE GUARDADO (Corregida para evitar duplicados)
     if emp_id:
+        # --- CASO EDICIÓN ---
         db.collection('Empleados').document(emp_id).update(datos)
+        flash("Contrato actualizado correctamente", "success")
     else:
-        db.collection('Empleados').add(datos)
-    
+        # --- CASO NUEVO ---
+        # Guardamos el contrato principal
+        new_doc_ref = db.collection('Empleados').add(datos)
+        nuevo_id = new_doc_ref[1].id
+        
+        # Generar cronograma de pagos
+        try:
+            f_inicio = datetime.strptime(d.get('fecha_inicio'), '%Y-%m-%d')
+            f_fin = datetime.strptime(d.get('fecha_fin'), '%Y-%m-%d')
+            
+            temp_fecha = f_inicio
+            es_primer_pago = True
+            
+            while temp_fecha <= f_fin:
+                # El depósito solo se suma al primer mes
+                monto_final = total_mensual + (deposito if es_primer_pago else 0)
+                
+                pago_mes = {
+                    'mes_anio': temp_fecha.strftime('%B %Y'),
+                    'fecha_vencimiento': temp_fecha.strftime('%Y-%m-%d'),
+                    'monto': monto_final,
+                    'estado': 'Pendiente',
+                    'nota': 'Incluye Depósito' if es_primer_pago and deposito > 0 else ''
+                }
+                
+                db.collection('Empleados').document(nuevo_id).collection('Pagos').add(pago_mes)
+                
+                temp_fecha += relativedelta(months=1)
+                es_primer_pago = False
+                
+            flash("Contrato y pagos generados con éxito", "success")
+        except Exception as e:
+            flash(f"Contrato creado, pero hubo un error en las fechas: {e}", "warning")
+
     return redirect(url_for('dashboard'))
 
 @app.route('/exportar_excel')
@@ -250,6 +303,77 @@ def reporte():
                            contrato_sel=cont_sel, 
                            estado_sel=est_sel)
 
+
+# --- NUEVA RUTA: VER HOJA DE PAGOS ---
+@app.route('/ver_pagos/<id>')
+def ver_pagos(id):
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    # 1. Obtener datos del contrato (Empleado)
+    doc_ref = db.collection('Empleados').document(id)
+    contrato = doc_ref.get().to_dict()
+    contrato['id'] = id
+
+    # 2. Obtener la sub-colección de pagos
+    pagos_query = doc_ref.collection('Pagos').order_by('fecha_vencimiento').stream()
+    
+    pagos = []
+    recaudado = 0.0
+    pendiente = 0.0
+
+    for p in pagos_query:
+        p_data = p.to_dict()
+        p_data['id'] = p.id
+        monto = safe_float(p_data.get('monto', 0))
+        
+        if p_data.get('estado') == 'Cancelado':
+            recaudado += monto
+        else:
+            pendiente += monto
+        pagos.append(p_data)
+
+    return render_template('pagos.html', 
+                           pagos=pagos, 
+                           contrato=contrato, 
+                           total_recaudado=recaudado, 
+                           total_pendiente=pendiente)
+
+# --- NUEVA RUTA: CAMBIAR ESTADO DE PAGO ---
+@app.route('/toggle_pago/<contrato_id>/<pago_id>', methods=['POST'])
+def toggle_pago(contrato_id, pago_id):
+    if 'user' not in session: return jsonify({'status': 'error'}), 401
+    
+    pago_ref = db.collection('Empleados').document(contrato_id).collection('Pagos').document(pago_id)
+    pago_doc = pago_ref.get().to_dict()
+    
+    nuevo_estado = 'Cancelado' if pago_doc.get('estado') == 'Pendiente' else 'Pendiente'
+    pago_ref.update({'estado': nuevo_estado})
+    
+    return redirect(url_for('ver_pagos', id=contrato_id))
+
+@app.route('/propiedades') # O puedes ponerlo en @app.route('/') si prefieres que sea lo primero
+def propiedades():
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    docs = db.collection('Empleados').stream()
+    propiedades_dict = {}
+
+    for doc in docs:
+        item = doc.to_dict()
+        item['id'] = doc.id
+        # Usamos la dirección como identificador único de la propiedad
+        dir_name = item.get('direccion', 'Sin Dirección')
+        
+        # Lógica: Si hay varios contratos para una misma dirección, 
+        # nos quedamos con el más reciente (Contrato Actual)
+        if dir_name not in propiedades_dict:
+            propiedades_dict[dir_name] = item
+        else:
+            # Si el contrato actual es más reciente que el guardado, lo reemplaza
+            if item.get('fecha') > propiedades_dict[dir_name].get('fecha'):
+                propiedades_dict[dir_name] = item
+
+    return render_template('propiedades.html', propiedades=propiedades_dict)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
