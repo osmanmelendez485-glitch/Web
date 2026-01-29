@@ -8,28 +8,18 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .bg-suspendido { background-color: #ffc107; color: #000; } /* Color amarillo para Suspensión */
-
-        /* Ajustes para pantalla */
-        .container { max-width: 800px; }
+        .container { max-width: 900px; }
         .card-resumen { border: none; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-
-        /* --- CONFIGURACIÓN PARA IMPRESIÓN TAMAÑO CARTA --- */
+        
         @media print {
-            @page {
-                size: letter;
-                margin: 1.5cm;
-            }
+            @page { size: letter; margin: 1.5cm; }
             body { background-color: white !important; font-size: 10pt; }
-            .btn, .no-print, nav { display: none !important; } /* Oculta botones y navegación */
+            .btn, .no-print, .dropdown-toggle::after, nav { display: none !important; }
             .container { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
             .shadow-sm, .card { box-shadow: none !important; border: 1px solid #ddd !important; }
-            .badge { border: 1px solid #000 !important; color: #000 !important; background: transparent !important; }
-            .table { width: 100% !important; border-collapse: collapse; }
-            .table th, .table td { padding: 5px !important; border: 1px solid #eee !important; }
+            .table th { background-color: #333 !important; color: white !important; -webkit-print-color-adjust: exact; }
             .header-print { display: block !important; text-align: center; margin-bottom: 20px; }
         }
-
         .header-print { display: none; }
     </style>
 </head>
@@ -43,7 +33,7 @@
 
         <div class="d-flex justify-content-between align-items-center mb-4 no-print">
             <a href="/dashboard" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
-            <button onclick="window.print()" class="btn btn-sm btn-dark"><i class="bi bi-printer"></i> Estado de Cuenta</button>
+            <button onclick="window.print()" class="btn btn-sm btn-dark"><i class="bi bi-printer"></i> Imprimir Reporte</button>
         </div>
 
         <div class="card card-resumen mb-3">
@@ -54,9 +44,10 @@
                         <p class="small mb-0 text-muted">Cédula: <strong>{{ contrato.cedula }}</strong></p>
                         <p class="small mb-0 text-muted">Dirección: {{ contrato.direccion }}</p>
                     </div>
-                    <div class="col-5 text-end">
+                    <div class="col-5 text-end border-start">
                         <p class="small mb-1">Contrato №: <span class="fw-bold">{{ contrato.num_contrato }}</span></p>
-                        <p class="small mb-0">Vigencia: <br>{{ contrato.fecha_inicio }} / {{ contrato.fecha_fin }}</p>
+                        <p class="small mb-0 text-muted">Vigencia:</p>
+                        <p class="small mb-0 fw-bold">{{ contrato.fecha_inicio }} / {{ contrato.fecha_fin }}</p>
                     </div>
                 </div>
             </div>
@@ -65,61 +56,97 @@
         <div class="row g-2 mb-4">
             <div class="col-6">
                 <div class="p-2 border rounded bg-white text-center">
-                    <small class="text-muted d-block fw-bold">TOTAL CANCELADO</small>
-                    <span class="text-success fw-bold">C$ {{ "{:,.2f}".format(total_recaudado) }}</span>
+                    <small class="text-muted d-block fw-bold small">TOTAL CANCELADO</small>
+                    <span class="text-success fw-bold h5">C$ {{ "{:,.2f}".format(total_recaudado) }}</span>
                 </div>
             </div>
             <div class="col-6">
                 <div class="p-2 border rounded bg-white text-center">
-                    <small class="text-muted d-block fw-bold">TOTAL PENDIENTE</small>
-                    <span class="text-danger fw-bold">C$ {{ "{:,.2f}".format(total_pendiente) }}</span>
+                    <small class="text-muted d-block fw-bold small">TOTAL PENDIENTE</small>
+                    <span class="text-danger fw-bold h5">C$ {{ "{:,.2f}".format(total_pendiente) }}</span>
                 </div>
             </div>
         </div>
 
-                    <table class="table table-hover align-middle">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle bg-white shadow-sm rounded">
                 <thead class="table-dark">
                     <tr>
                         <th>Mes de Pago</th>
                         <th>Vencimiento</th>
-                        <th>Cuota Mensual</th>
+                        <th>Cuota Total</th>
+                        <th class="text-center">Depósito</th>
                         <th>Estado</th>
-                        <th>Acción</th>
+                        <th class="no-print text-center">Acción</th>
                     </tr>
-                </thead>
-                <tbody>
-                    {% for p in pagos %}
-                    <tr class="{% if p.estado == 'Suspensión' %}table-secondary opacity-75{% endif %}">
-                        <td class="fw-bold">{{ p.mes_anio }}</td>
-                        <td>{{ p.fecha_vencimiento }}</td>
-                        <td>C$ {{ "{:,.20f}".format(p.monto).split('.')[0] + "." + "{:,.20f}".format(p.monto).split('.')[1][:2] }}</td>
-                        <td>
-                            {% if p.estado == 'Cancelado' %}
-                                <span class="badge bg-success">Cancelado</span>
-                            {% elif p.estado == 'Suspensión' %}
-                                <span class="badge bg-warning text-dark">Suspensión</span>
-                            {% else %}
-                                <span class="badge bg-danger">Pendiente</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if p.estado == 'Pendiente' %}
-                                <a href="/toggle_pago/{{ id }}/{{ p.id }}/Cancelado" class="btn btn-sm btn-success">Pagado</a>
-                                <a href="/suspend/{{ id }}/{{ p.id }}" class="btn btn-sm btn-warning">Suspender</a>
-                            {% else %}
-                                <a href="/toggle_pago/{{ id }}/{{ p.id }}/Pendiente" class="btn btn-sm btn-outline-secondary">Revertir</a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
+                
+                    <tbody>
+                        {% for p in pagos %}
+                        {% set mov = p.get('deposito_movimiento', 0) %}
+                        
+                        <tr class="{% if p.estado == 'Suspensión' %}table-secondary opacity-75{% endif %}">
+                            <td class="fw-bold">
+                                {{ p.mes_anio }}
+                                {% if p.nota %}<br><small class="text-primary fw-normal" style="font-size: 0.75rem;"><i class="bi bi-info-circle"></i> {{ p.nota }}</small>{% endif %}
+                            </td>
+                            <td class="small text-muted">{{ p.fecha_vencimiento }}</td>
+                            <td class="fw-bold">C$ {{ "{:,.2f}".format(p.monto) }}</td>
+                            
+                            <td class="text-center">
+                                {% if mov != 0 %}
+                                    <span class="badge {% if mov > 0 %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %} border">
+                                        C$ {{ "{:,.2f}".format(mov) }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if p.estado == 'Cancelado' %}
+                                    <span class="badge bg-success">Cancelado</span>
+                                {% elif p.estado == 'Suspensión' %}
+                                    <span class="badge bg-warning text-dark">Suspensión</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Pendiente</span>
+                                {% endif %}
+                            </td>
+                            
+                            <td class="no-print text-center">
+                                <div class="btn-group">
+                                    {% if p.estado == 'Pendiente' %}
+                                        <a href="/toggle_pago/{{ id }}/{{ p.id }}/Cancelado" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i></a>
+                                        
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-sm {% if mov > 0 %}btn-success{% elif mov < 0 %}btn-danger{% else %}btn-outline-primary{% endif %} dropdown-toggle" data-bs-toggle="dropdown">
+                                                <i class="bi bi-currency-dollar"></i>
+                                            </button>
+                                            <ul class="dropdown-menu shadow">
+                                                <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/toma"><i class="bi bi-plus-circle text-success me-2"></i>Toma (Sumar)</a></li>
+                                                <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/retorna"><i class="bi bi-dash-circle text-danger me-2"></i>Retornar (Quitar)</a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/ninguno"><i class="bi bi-x-circle text-muted me-2"></i>Ninguno (Revertir)</a></li>
+                                            </ul>
+                                        </div>
+
+                                        <a href="/suspend/{{ id }}/{{ p.id }}" class="btn btn-sm btn-warning"><i class="bi bi-pause-fill"></i></a>
+                                    {% else %}
+                                        <a href="/toggle_pago/{{ id }}/{{ p.id }}/Pendiente" class="btn btn-sm btn-outline-secondary">Revertir</a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
             </table>
         </div>
 
-        <div class="mt-4 text-center small text-muted">
-            <p>Este documento es un comprobante de estado de cuenta informativo.</p>
+        <div class="mt-4 text-center small text-muted no-print">
+            <p><i class="bi bi-shield-lock"></i> Reporte informativo de control de pagos y depósitos.</p>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -116,6 +116,7 @@ def dashboard():
         return f"Error en Dashboard: {e}"
 
 # --- GUARDAR / EDITAR ---
+
 @app.route('/save', methods=['POST'])
 def save():
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -123,40 +124,133 @@ def save():
     d = request.form
     emp_id = d.get('id')
     
+    # --- PROCESAMIENTO DE DINERO ---
+    deposito_valor = safe_float(d.get('deposito'))
+    # Si no especificas meses, por defecto son 12
+    limite_meses = int(d.get('meses_contrato', 12)) 
+    
+    mensualidad_base = (safe_float(d.get('internet')) + safe_float(d.get('agua')) + 
+                        safe_float(d.get('luz')) + safe_float(d.get('canon')) + 
+                        safe_float(d.get('equipo')))
+
     datos = {
-        'nombre': d.get('nombre'),
-        'apellido': d.get('apellido'),
         'cedula': d.get('cedula'),
         'num_contrato': d.get('num_contrato'),
         'direccion': d.get('direccion'),
         'estado': d.get('estado', 'Pendiente'),
+        'fecha_inicio': d.get('fecha_inicio', datetime.now().strftime('%Y-%m-%d')),
         'internet': safe_float(d.get('internet')),
         'agua': safe_float(d.get('agua')),
         'luz': safe_float(d.get('luz')),
         'canon': safe_float(d.get('canon')),
         'equipo': safe_float(d.get('equipo')),
-        'deposito': safe_float(d.get('deposito')),
-        'total_pagar': safe_float(d.get('internet')) + safe_float(d.get('agua')) + safe_float(d.get('luz')) + safe_float(d.get('canon')) + safe_float(d.get('equipo'))
+        'deposito': deposito_valor,
+        'total_pagar': mensualidad_base, # Guardamos el total mensual base en el contrato
+        'fecha': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
-
-    if 'imagen_archivo' in request.files:
-        file = request.files['imagen_archivo']
-        if file and file.filename != '':
-            filename = secure_filename(file.filename)
-            upload_path = os.path.join(app.root_path, 'static', 'uploads')
-            if not os.path.exists(upload_path): os.makedirs(upload_path)
-            file.save(os.path.join(upload_path, filename))
-            datos['foto_url'] = f'/static/uploads/{filename}'
 
     if emp_id:
         db.collection('Empleados').document(emp_id).update(datos)
-        flash("Registro actualizado correctamente", "success")
+        flash("Datos actualizados", "success")
     else:
-        # Lógica simplificada para nuevo registro (faltaría tu bucle de pagos)
-        db.collection('Empleados').add(datos)
-        flash("Contrato creado", "success")
+        # --- CREACIÓN DE NUEVO CONTRATO Y PAGOS ---
+        nuevo_doc = db.collection('Empleados').add(datos)
+        new_id = nuevo_doc[1].id 
+
+        try:
+            fecha_venc = datetime.strptime(datos['fecha_inicio'], '%Y-%m-%d')
+        except:
+            fecha_venc = datetime.now()
+
+        for i in range(limite_meses):
+            monto_final = mensualidad_base
+            nota_info = ""
+
+            # 1. SUMAR DEPÓSITO AL PRIMER MES
+            if i == 0:
+                monto_final = mensualidad_base + deposito_valor
+                nota_info = "Cobro de Depósito Inicial"
+            
+            # 2. RETORNAR DEPÓSITO AL ÚLTIMO MES (DINÁMICO)
+            elif i == limite_meses - 1:
+                monto_final = mensualidad_base - deposito_valor
+                nota_info = "Retorno de Depósito"
+
+            pago_doc = {
+                'mes_anio': fecha_venc.strftime('%B %Y'),
+                'fecha_vencimiento': fecha_venc.strftime('%Y-%m-%d'),
+                'monto': monto_final,
+                'estado': 'Pendiente',
+                'nota': nota_info
+            }
+            
+            db.collection('Empleados').document(new_id).collection('Pagos').add(pago_doc)
+            fecha_venc += relativedelta(months=1)
+        
+        flash(f"Contrato creado con {limite_meses} meses de pagos.", "success")
 
     return redirect(url_for('dashboard'))
+###procesar el retorno de depósito de forma individual
+
+
+@app.route('/gestionar_deposito/<e_id>/<p_id>/<accion>')
+def gestionar_deposito(e_id, p_id, accion):
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    emp_ref = db.collection('Empleados').document(e_id)
+    pago_ref = emp_ref.collection('Pagos').document(p_id)
+    
+    contrato = emp_ref.get().to_dict()
+    pago = pago_ref.get().to_dict()
+    
+    deposito = safe_float(contrato.get('deposito', 0))
+    # Importante: El monto base debe ser calculado sin el movimiento previo
+    movimiento_previo = safe_float(pago.get('deposito_movimiento', 0))
+    monto_base = safe_float(pago.get('monto')) - movimiento_previo
+
+    if accion == 'toma':
+        nuevo_movimiento = deposito
+        nota = "Depósito Tomado (Cobro)"
+        flash("Se sumó el depósito a la cuota", "success")
+    elif accion == 'retorna':
+        nuevo_movimiento = -deposito
+        nota = "Retorno de Depósito"
+        flash("Se restó el depósito de la cuota", "info")
+    else: # accion == 'ninguno'
+        nuevo_movimiento = 0
+        nota = ""
+        flash("Movimiento de depósito eliminado", "secondary")
+
+    pago_ref.update({
+        'monto': monto_base + nuevo_movimiento,
+        'deposito_movimiento': nuevo_movimiento,
+        'nota': nota
+    })
+    
+    return redirect(url_for('ver_pagos', id=e_id))
+
+
+@app.route('/deshacer_deposito/<e_id>/<p_id>')
+def deshacer_deposito(e_id, p_id):
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    pago_ref = db.collection('Empleados').document(e_id).collection('Pagos').document(p_id)
+    pago = pago_ref.get().to_dict()
+    
+    # Obtenemos el movimiento que hubo (positivo o negativo)
+    movimiento = safe_float(pago.get('deposito_movimiento', 0))
+    monto_actual = safe_float(pago.get('monto'))
+
+    # Revertimos el monto al estado original
+    pago_ref.update({
+        'monto': monto_actual - movimiento,
+        'deposito_movimiento': 0, # Limpiamos el rastro
+        'nota': ""
+    })
+    
+    flash("Movimiento de depósito revertido", "secondary")
+    return redirect(url_for('ver_pagos', id=e_id))
+
 
 # --- GESTIÓN DE PAGOS ---
 @app.route('/ver_pagos/<id>')

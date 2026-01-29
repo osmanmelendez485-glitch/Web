@@ -243,7 +243,7 @@
         });
 
         function calcularTotalRegistro() {
-            const fields = ['reg-internet', 'reg-agua', 'reg-luz', 'reg-canon', 'reg-equipo', 'reg-deposito'];
+            const fields = ['reg-internet', 'reg-agua', 'reg-luz', 'reg-canon', 'reg-equipo', 'reg-deposito',];
             let total = 0;
             fields.forEach(id => {
                 total += parseFloat(document.getElementById(id).value) || 0;
