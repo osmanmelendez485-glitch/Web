@@ -74,6 +74,7 @@ def logout():
     return redirect(url_for('login_page'))
 
 # --- DASHBOARD ---
+
 @app.route('/dashboard')
 def dashboard():
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -192,7 +193,6 @@ def save():
     return redirect(url_for('dashboard'))
 ###procesar el retorno de depósito de forma individual
 
-
 @app.route('/gestionar_deposito/<e_id>/<p_id>/<accion>')
 def gestionar_deposito(e_id, p_id, accion):
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -204,31 +204,26 @@ def gestionar_deposito(e_id, p_id, accion):
     pago = pago_ref.get().to_dict()
     
     deposito = safe_float(contrato.get('deposito', 0))
-    # Importante: El monto base debe ser calculado sin el movimiento previo
-    movimiento_previo = safe_float(pago.get('deposito_movimiento', 0))
-    monto_base = safe_float(pago.get('monto')) - movimiento_previo
+    # Calculamos el monto base quitando cualquier movimiento previo
+    mov_previo = safe_float(pago.get('deposito_movimiento', 0))
+    monto_base = safe_float(pago.get('monto')) - mov_previo
 
     if accion == 'toma':
-        nuevo_movimiento = deposito
-        nota = "Depósito Tomado (Cobro)"
-        flash("Se sumó el depósito a la cuota", "success")
+        nuevo_mov = deposito
+        nota = "Depósito Tomado"
     elif accion == 'retorna':
-        nuevo_movimiento = -deposito
+        nuevo_mov = -deposito
         nota = "Retorno de Depósito"
-        flash("Se restó el depósito de la cuota", "info")
-    else: # accion == 'ninguno'
-        nuevo_movimiento = 0
+    else: # ninguno
+        nuevo_mov = 0
         nota = ""
-        flash("Movimiento de depósito eliminado", "secondary")
 
     pago_ref.update({
-        'monto': monto_base + nuevo_movimiento,
-        'deposito_movimiento': nuevo_movimiento,
+        'monto': monto_base + nuevo_mov,
+        'deposito_movimiento': nuevo_mov,
         'nota': nota
     })
-    
     return redirect(url_for('ver_pagos', id=e_id))
-
 
 @app.route('/deshacer_deposito/<e_id>/<p_id>')
 def deshacer_deposito(e_id, p_id):
