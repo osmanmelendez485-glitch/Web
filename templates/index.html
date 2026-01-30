@@ -65,7 +65,15 @@
                             <div class="col-md-2"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" class="form-control form-control-sm" required></div>
                             <div class="col-md-2"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" class="form-control form-control-sm"></div>
                             <div class="col-md-2"><label class="small fw-bold">Cédula</label><input type="text" name="cedula" class="form-control form-control-sm" required></div>
-                            <div class="col-md-2"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" class="form-control form-control-sm" placeholder="Opcional"></div>
+                            <div class="col-md-2">
+                                <label class="small fw-bold text-primary">No. Contrato</label>
+                                <input type="text" name="num_contrato" id="reg-num-contrato" 
+                                    class="form-control form-control-sm bg-light" 
+                                    placeholder="Auto-generado" 
+                                    readonly>
+                                <small class="text-muted" style="font-size: 0.7rem;">Se genera al guardar</small>
+                            </div>
+                            
                             <div class="col-md-1"><label class="small fw-bold text-success">Canon</label><input type="number" step="1" name="canon" id="reg-canon" class="form-control form-control-sm" value="0"></div>
                             
                             <div class="col-md-2"><label class="small fw-bold text-primary">Inicio Contrato</label><input type="date" name="fecha_inicio" class="form-control form-control-sm" required></div>
@@ -277,6 +285,27 @@
         // Eventos para cálculos en tiempo real
         document.querySelectorAll('[id^="reg-"]').forEach(inp => inp.addEventListener('input', calcularTotalRegistro));
         document.querySelectorAll('[id^="edit-"]').forEach(inp => inp.addEventListener('input', calcularTotalEdit));
+        
+        function actualizarPrevisualizacionContrato() {
+        const fechaInput = document.querySelector('input[name="fecha"]').value;
+        const contratoInput = document.getElementById('reg-num-contrato');
+        
+        if (fechaInput) {
+            const fecha = new Date(fechaInput);
+            const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+            const anio = fecha.getFullYear();
+            // Nota: El consecutivo real solo lo sabe el servidor, 
+            // aquí ponemos "XXX" como placeholder.
+            contratoInput.placeholder = `${mes}${anio}-XXX`;
+            }
+        }
+
+        // Ejecutar cuando cambie la fecha de registro
+        document.querySelector('input[name="fecha"]').addEventListener('change', actualizarPrevisualizacionContrato);
+        // Ejecutar al cargar la página
+        actualizarPrevisualizacionContrato();
+        
+    
     </script>
 </body>
 </html>

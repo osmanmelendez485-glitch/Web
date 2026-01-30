@@ -135,11 +135,14 @@ def save():
                         safe_float(d.get('equipo')))
 
     datos = {
+        'nombre': d.get('nombre'),
+        'apellido': d.get('apellido'),
         'cedula': d.get('cedula'),
         'num_contrato': d.get('num_contrato'),
         'direccion': d.get('direccion'),
         'estado': d.get('estado', 'Pendiente'),
         'fecha_inicio': d.get('fecha_inicio', datetime.now().strftime('%Y-%m-%d')),
+        'fecha_fin': d.get('fecha_fin', datetime.now().strftime('%Y-%m-%d')),
         'internet': safe_float(d.get('internet')),
         'agua': safe_float(d.get('agua')),
         'luz': safe_float(d.get('luz')),
@@ -169,13 +172,13 @@ def save():
 
             # 1. SUMAR DEPÓSITO AL PRIMER MES
             if i == 0:
-                monto_final = mensualidad_base + deposito_valor
+                monto_final = mensualidad_base #+ deposito_valor
                 nota_info = "Cobro de Depósito Inicial"
             
             # 2. RETORNAR DEPÓSITO AL ÚLTIMO MES (DINÁMICO)
             elif i == limite_meses - 1:
-                monto_final = mensualidad_base - deposito_valor
-                nota_info = "Retorno de Depósito"
+                monto_final = mensualidad_base #- deposito_valor
+                nota_info = "Retorno de Depósito 206"
 
             pago_doc = {
                 'mes_anio': fecha_venc.strftime('%B %Y'),
@@ -189,6 +192,26 @@ def save():
             fecha_venc += relativedelta(months=1)
         
         flash(f"Contrato creado con {limite_meses} meses de pagos.", "success")
+
+    num_contrato = request.form.get('num_contrato')
+    fecha_registro = request.form.get('fecha') # Formato YYYY-MM-DD
+    
+    # Si el número de contrato viene vacío, lo generamos
+    if not num_contrato or num_contrato.strip() == "":
+        fecha_dt = datetime.strptime(fecha_registro, '%Y-%m-%d')
+        mes = fecha_dt.strftime('%m')
+        anio = fecha_dt.strftime('%Y')
+        
+        # 1. Consultar cuántos contratos hay en Firebase para este año
+        # Esto depende de cómo tengas estructurada tu DB. 
+        # Ejemplo si usas Firestore:
+        todos = db.collection('empleados').get()
+        consecutivo = len(todos) + 1 
+        
+        # Formato: MMYYYY-001
+        num_contrato = f"{mes}{anio}-{consecutivo:03d}"
+    
+    # Guardar en la base de datos con num_contrato generado..
 
     return redirect(url_for('dashboard'))
 ###procesar el retorno de depósito de forma individual
@@ -213,7 +236,7 @@ def gestionar_deposito(e_id, p_id, accion):
         nota = "Depósito Tomado"
     elif accion == 'retorna':
         nuevo_mov = -deposito
-        nota = "Retorno de Depósito"
+        nota = "Retorno de Depósito 2026"
     else: # ninguno
         nuevo_mov = 0
         nota = ""
