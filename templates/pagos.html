@@ -85,8 +85,10 @@
                                 <a href="/toggle_pago/{{ id }}/{{ p.id }}/Cancelado" class="btn btn-sm btn-success">Pagado</a>
                                 
                                 <div class="btn-group">
-                                    <button class="btn btn-sm {% if mov > 0 %}btn-success{% elif mov < 0 %}btn-danger{% else %}btn-outline-primary{% endif %} dropdown-toggle" data-bs-toggle="dropdown">
-                                        <i class="bi bi-currency-dollar"></i>
+                                    <button class="btn btn-sm {% if mov > 0 %}btn-success{% elif mov < 0 %}btn-danger{% else %}btn-outline-primary{% endif %} dropdown-toggle" 
+                                            data-bs-toggle="dropdown" 
+                                            aria-expanded="false"
+                                            data-bs-boundary="viewport"> <i class="bi bi-currency-dollar"></i>
                                     </button>
                                         <ul class="dropdown-menu">
                                             <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/toma">Toma (Sumar)</a></li>
@@ -104,6 +106,7 @@
                     </td>
                 </tr>
                 {% endfor %}
+                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
             </tbody>
         </table>
     </div>
