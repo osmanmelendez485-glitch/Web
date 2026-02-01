@@ -88,12 +88,12 @@
                                     <button class="btn btn-sm {% if mov > 0 %}btn-success{% elif mov < 0 %}btn-danger{% else %}btn-outline-primary{% endif %} dropdown-toggle" data-bs-toggle="dropdown">
                                         <i class="bi bi-currency-dollar"></i>
                                     </button>
-                                    <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/toma">Toma (Sumar)</a></li>
-                                        <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/retorna">Retorna (Restar)</a></li>
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/ninguno">Ninguno (Revertir)</a></li>
-                                    </ul>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/toma">Toma (Sumar)</a></li>
+                                            <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/retorna">Retorna (Restar)</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/ninguno">Ninguno (Revertir)</a></li>
+                                        </ul>
                                 </div>
 
                                 <a href="/suspend/{{ id }}/{{ p.id }}" class="btn btn-sm btn-warning">Suspender</a>
@@ -108,6 +108,12 @@
         </table>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <tfoot class="table-light fw-bold">
+    <tr>
+        <td colspan="2" class="text-end">Totales:</td>
+        <td>C$ {{ "{:,.2f}".format(total_recaudado + total_pendiente) }}</td>
+        <td colspan="3"></td>
+    </tr>
+</tfoot>
 </body>
 </html>

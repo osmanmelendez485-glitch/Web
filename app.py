@@ -117,7 +117,6 @@ def dashboard():
         return f"Error en Dashboard: {e}"
 
 # --- GUARDAR / EDITAR ---
-
 @app.route('/save', methods=['POST'])
 def save():
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -125,96 +124,97 @@ def save():
     d = request.form
     emp_id = d.get('id')
     
-    # --- PROCESAMIENTO DE DINERO ---
-    deposito_valor = safe_float(d.get('deposito'))
-    # Si no especificas meses, por defecto son 12
-    limite_meses = int(d.get('meses_contrato', 12)) 
+    # --- 1. PROCESAMIENTO SEGURO DE FECHA DE REGISTRO ---
+    # Capturamos el dato y quitamos espacios
+    fecha_reg_raw = d.get('fecha', '').strip()
     
+    # Si está vacío o hay error, usamos 'now'
+    if not fecha_reg_raw:
+        fecha_dt = datetime.now()
+    else:
+        try:
+            fecha_dt = datetime.strptime(fecha_reg_raw, '%Y-%m-%d')
+        except ValueError:
+            fecha_dt = datetime.now()
+
+    # --- 2. GENERACIÓN DE NÚMERO DE CONTRATO ---
+    num_contrato = d.get('num_contrato', '').strip()
+    if not num_contrato:
+        mes_c = fecha_dt.strftime('%m')
+        anio_c = fecha_dt.strftime('%Y')
+        # Contamos registros para el consecutivo
+        try:
+            todos = db.collection('Empleados').get()
+            consecutivo = len(todos) + 1
+        except:
+            consecutivo = 1
+        num_contrato = f"{mes_c}{anio_c}-{consecutivo:03d}"
+
+    # --- 3. PROCESAMIENTO DE DINERO ---
+    deposito_valor = safe_float(d.get('deposito'))
+    limite_meses = int(d.get('meses_contrato', 12)) 
     mensualidad_base = (safe_float(d.get('internet')) + safe_float(d.get('agua')) + 
                         safe_float(d.get('luz')) + safe_float(d.get('canon')) + 
                         safe_float(d.get('equipo')))
+
+    # --- 4. PREPARACIÓN DE DATOS (Validando fechas de inicio/fin) ---
+    f_inicio_raw = d.get('fecha_inicio', '').strip()
+    f_fin_raw = d.get('fecha_fin', '').strip()
+
+    # Si vienen vacías, asignamos hoy en formato texto para la DB
+    f_inicio_db = f_inicio_raw if f_inicio_raw else datetime.now().strftime('%Y-%m-%d')
+    f_fin_db = f_fin_raw if f_fin_raw else datetime.now().strftime('%Y-%m-%d')
 
     datos = {
         'nombre': d.get('nombre'),
         'apellido': d.get('apellido'),
         'cedula': d.get('cedula'),
-        'num_contrato': d.get('num_contrato'),
+        'num_contrato': num_contrato,
         'direccion': d.get('direccion'),
         'estado': d.get('estado', 'Pendiente'),
-        'fecha_inicio': d.get('fecha_inicio', datetime.now().strftime('%Y-%m-%d')),
-        'fecha_fin': d.get('fecha_fin', datetime.now().strftime('%Y-%m-%d')),
+        'fecha_inicio': f_inicio_db,
+        'fecha_fin': f_fin_db,
         'internet': safe_float(d.get('internet')),
         'agua': safe_float(d.get('agua')),
         'luz': safe_float(d.get('luz')),
         'canon': safe_float(d.get('canon')),
         'equipo': safe_float(d.get('equipo')),
         'deposito': deposito_valor,
-        'total_pagar': mensualidad_base, # Guardamos el total mensual base en el contrato
-        'fecha': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        'total_pagar': mensualidad_base,
+        'fecha': fecha_dt.strftime('%Y-%m-%d %H:%M:%S')
     }
 
+    # --- 5. GUARDADO Y PAGOS ---
     if emp_id:
         db.collection('Empleados').document(emp_id).update(datos)
-        flash("Datos actualizados", "success")
+        flash(f"Registro {num_contrato} actualizado", "success")
     else:
-        # --- CREACIÓN DE NUEVO CONTRATO Y PAGOS ---
         nuevo_doc = db.collection('Empleados').add(datos)
         new_id = nuevo_doc[1].id 
 
+        # Generador de pagos con protección extra
         try:
-            fecha_venc = datetime.strptime(datos['fecha_inicio'], '%Y-%m-%d')
+            fecha_venc = datetime.strptime(f_inicio_db, '%Y-%m-%d')
         except:
             fecha_venc = datetime.now()
 
         for i in range(limite_meses):
-            monto_final = mensualidad_base
-            nota_info = ""
-
-            # 1. SUMAR DEPÓSITO AL PRIMER MES
-            if i == 0:
-                monto_final = mensualidad_base #+ deposito_valor
-                nota_info = "Cobro de Depósito Inicial"
-            
-            # 2. RETORNAR DEPÓSITO AL ÚLTIMO MES (DINÁMICO)
-            elif i == limite_meses - 1:
-                monto_final = mensualidad_base #- deposito_valor
-                nota_info = "Retorno de Depósito 206"
-
             pago_doc = {
                 'mes_anio': fecha_venc.strftime('%B %Y'),
                 'fecha_vencimiento': fecha_venc.strftime('%Y-%m-%d'),
-                'monto': monto_final,
+                'monto': mensualidad_base,
                 'estado': 'Pendiente',
-                'nota': nota_info
+                'nota': "Depósito Inicial" if i == 0 else ""
             }
-            
             db.collection('Empleados').document(new_id).collection('Pagos').add(pago_doc)
             fecha_venc += relativedelta(months=1)
         
-        flash(f"Contrato creado con {limite_meses} meses de pagos.", "success")
-
-    num_contrato = request.form.get('num_contrato')
-    fecha_registro = request.form.get('fecha') # Formato YYYY-MM-DD
-    
-    # Si el número de contrato viene vacío, lo generamos
-    if not num_contrato or num_contrato.strip() == "":
-        fecha_dt = datetime.strptime(fecha_registro, '%Y-%m-%d')
-        mes = fecha_dt.strftime('%m')
-        anio = fecha_dt.strftime('%Y')
-        
-        # 1. Consultar cuántos contratos hay en Firebase para este año
-        # Esto depende de cómo tengas estructurada tu DB. 
-        # Ejemplo si usas Firestore:
-        todos = db.collection('empleados').get()
-        consecutivo = len(todos) + 1 
-        
-        # Formato: MMYYYY-001
-        num_contrato = f"{mes}{anio}-{consecutivo:03d}"
-    
-    # Guardar en la base de datos con num_contrato generado..
+        flash(f"Contrato {num_contrato} creado con éxito", "success")
 
     return redirect(url_for('dashboard'))
-###procesar el retorno de depósito de forma individual
+
+#-----------
+
 
 @app.route('/gestionar_deposito/<e_id>/<p_id>/<accion>')
 def gestionar_deposito(e_id, p_id, accion):
@@ -391,6 +391,9 @@ def resumen_propiedades():
                            hasta=fecha_hasta)
 
 
+VERSION = "1.0.3" # Muévela al inicio, debajo de app = Flask(__name__)
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    # Usa debug=False para producción en Render
+    app.run(host='0.0.0.0', port=port, debug=False)
