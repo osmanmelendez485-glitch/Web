@@ -181,7 +181,7 @@ def save():
         'equipo': safe_float(d.get('equipo')),
         'deposito': deposito_valor,
         'total_pagar': mensualidad_base,
-        'fecha': fecha_dt.strftime('%Y-%m-%d %H:%M:%S')
+        'fecha': fecha_dt.strftime('%Y-%m-%d')
     }
 
     # --- 5. GUARDADO Y PAGOS ---
