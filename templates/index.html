@@ -54,15 +54,27 @@
                             <div class="col-md-2"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" class="form-control form-control-sm"></div>
                             <div class="col-md-2"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" class="form-control form-control-sm" required></div>
                             <div class="col-md-2"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" class="form-control form-control-sm"></div>
+                            <div class="row g-2">
                             <div class="col-md-2">
                                 <label class="small fw-bold">Inicio</label>
-                                <input type="date" id="fecha_inicio" name="fecha_inicio" class="form-control form-control-sm" required value="{{ now.strftime('%Y-%m-%d') }}">
+                                <input type="date" 
+                                    id="fecha_inicio" 
+                                    name="fecha_inicio" 
+                                    class="form-control form-control-sm" 
+                                    required 
+                                    value="{{ now.strftime('%Y-%m-%d') }}">
                             </div>
 
                             <div class="col-md-2">
                                 <label class="small fw-bold">Fin</label>
-                                <input type="date" id="fecha_fin" name="fecha_fin" class="form-control form-control-sm" required value="{{ (now.year + 1) }}-{{ now.strftime('%m-%d') }}">
+                                <input type="date" 
+                                    id="fecha_fin" 
+                                    name="fecha_fin" 
+                                    class="form-control form-control-sm" 
+                                    required 
+                                    value="{{ (now.year + 1) }}-{{ now.strftime('%m-%d') }}">
                             </div>
+                        </div>
                             
                             <div class="col-md-2">
                                 <label class="small fw-bold">Foto Propiedad</label>
@@ -292,24 +304,33 @@
         }
     </script>
     <script>
-    const inputInicio = document.getElementById('fecha_inicio');
-    const inputFin = document.getElementById('fecha_fin');
+            document.addEventListener('DOMContentLoaded', function() {
+            const inputInicio = document.getElementById('fecha_inicio');
+            const inputFin = document.getElementById('fecha_fin');
 
-    inputInicio.addEventListener('change', function() {
-        if (this.value) {
-            let fecha = new Date(this.value);
-            
-            // Sumar 12 meses (JavaScript ajusta el año automáticamente)
-            fecha.setMonth(fecha.getMonth() + 12);
-            
-            // Formatear de nuevo a YYYY-MM-DD
-            let y = fecha.getFullYear();
-            let m = String(fecha.getMonth() + 1).padStart(2, '0');
-            let d = String(fecha.getDate()).padStart(2, '0');
-            
-            inputFin.value = `${y}-${m}-${d}`;
-        }
-    });
+            inputInicio.addEventListener('change', function() {
+                if (this.value) {
+                    // Creamos la fecha a partir del input (formato YYYY-MM-DD)
+                    // Agregamos 'T12:00:00' para evitar problemas de zona horaria
+                    let fecha = new Date(this.value + 'T12:00:00');
+                    
+                    // Sumamos exactamente 12 meses
+                    fecha.setMonth(fecha.getMonth() + 12);
+                    
+                    // Extraemos año, mes y día formateados
+                    let y = fecha.getFullYear();
+                    let m = String(fecha.getMonth() + 1).padStart(2, '0');
+                    let d = String(fecha.getDate()).padStart(2, '0');
+                    
+                    // Asignamos el nuevo valor al input de Fin
+                    inputFin.value = `${y}-${m}-${d}`;
+                    
+                    // Opcional: Feedback visual para el usuario
+                    inputFin.classList.add('is-valid');
+                    setTimeout(() => inputFin.classList.remove('is-valid'), 1500);
+                }
+            });
+        });
 </script>
 </body>
 </html>
