@@ -421,7 +421,13 @@ def resumen_propiedades():
                            direccion_sel=direccion_sel)
 
 
-VERSION = "1.0.3" # Muévela al inicio, debajo de app = Flask(__name__)
+# app.py
+VERSION = "1.2.0" # Cambia esto cada vez que hagas un hito importante
+
+@app.context_processor
+def inject_version():
+    # Esto permite que {{ app_version }} funcione en TODOS tus HTML
+    return dict(app_version=VERSION)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
