@@ -338,24 +338,31 @@ def propiedades():
             propiedades_dict[dir_name] = item
     return render_template('propiedades.html', propiedades=propiedades_dict)
 
-
 @app.route('/resumen_propiedades', methods=['GET', 'POST'])
 def resumen_propiedades():
     if 'user' not in session: return redirect(url_for('login_page'))
     
-    # Obtener fechas del filtro (por defecto el mes actual)
+    # 1. Capturar los datos del formulario
     fecha_desde = request.form.get('desde', datetime.now().strftime('%Y-%m-01'))
     fecha_hasta = request.form.get('hasta', datetime.now().strftime('%Y-%m-%d'))
+    direccion_sel = request.form.get('direccion', '')
+
+    # 2. Filtrar Empleados usando .where() en lugar de .filter()
+    query_empleados = db.collection('Empleados')
     
-    docs_empleados = db.collection('Empleados').stream()
+    if direccion_sel and direccion_sel != "":
+        # Filtro clásico compatible
+        docs_empleados = query_empleados.where('direccion', '==', direccion_sel).stream()
+    else:
+        docs_empleados = query_empleados.stream()
+
     resumen = []
 
     for emp in docs_empleados:
         e_data = emp.to_dict()
         e_id = emp.id
         
-        # Consultar subcolección de pagos filtrada por fecha
-        # Nota: La comparación de strings funciona bien con formato YYYY-MM-DD
+        # 3. Consultar subcolección de pagos usando .where()
         pagos_query = db.collection('Empleados').document(e_id).collection('Pagos')\
             .where('fecha_vencimiento', '>=', fecha_desde)\
             .where('fecha_vencimiento', '<=', fecha_hasta).stream()
@@ -376,10 +383,10 @@ def resumen_propiedades():
             
             acumulado_propiedad += monto
 
-        if acumulado_propiedad > 0: # Solo mostrar si hay pagos en ese rango
+        if acumulado_propiedad > 0: 
             resumen.append({
                 'direccion': e_data.get('direccion', 'Sin Dirección'),
-                'inquilino': f"{e_data.get('nombre')} {e_data.get('apellido')}",
+                'inquilino': f"{e_data.get('nombre', '')} {e_data.get('apellido', '')}",
                 'total': acumulado_propiedad,
                 'recaudado': recaudado_propiedad,
                 'pendiente': pendiente_propiedad
@@ -388,7 +395,8 @@ def resumen_propiedades():
     return render_template('resumen_acumulado.html', 
                            resumen=resumen, 
                            desde=fecha_desde, 
-                           hasta=fecha_hasta)
+                           hasta=fecha_hasta,
+                           direccion_sel=direccion_sel)
 
 
 VERSION = "1.0.3" # Muévela al inicio, debajo de app = Flask(__name__)

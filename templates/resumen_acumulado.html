@@ -21,16 +21,30 @@
         <div class="card card-resumen shadow-sm mb-4 no-print">
             <div class="card-body">
                 <form method="POST" class="row g-3 align-items-end">
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Fecha Desde</label>
-                        <input type="date" name="desde" class="form-control" value="{{ desde }}">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">Fecha Desde</label>
+                        <input type="date" name="desde" class="form-control form-control-sm" value="{{ desde }}">
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Fecha Hasta</label>
-                        <input type="date" name="hasta" class="form-control" value="{{ hasta }}">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">Fecha Hasta</label>
+                        <input type="date" name="hasta" class="form-control form-control-sm" value="{{ hasta }}">
                     </div>
-                    <div class="col-md-4">
-                        <button type="submit" class="btn btn-primary w-100"><i class="bi bi-filter"></i> Generar Resumen</button>
+                    
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">Propiedad / Dirección</label>
+                        <select name="direccion" class="form-select form-select-sm">
+                            <option value="">Todas las propiedades</option>
+                            {% set opciones = ["Miguel Jarquín", "Chinandega", "Invercasa SAFI", "Modulo 1", "Modulo 2"] %}
+                            {% for opcion in opciones %}
+                                <option value="{{ opcion }}" {% if direccion_sel == opcion %}selected{% endif %}>
+                                    {{ opcion }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-filter"></i> Generar Resumen</button>
                     </div>
                 </form>
             </div>
@@ -38,7 +52,10 @@
 
         <div class="text-center mb-4">
             <h3 class="fw-bold">Resumen Acumulado de Propiedades</h3>
-            <p class="text-muted">Periodo: {{ desde }} al {{ hasta }}</p>
+            <p class="text-muted">
+                Periodo: {{ desde }} al {{ hasta }}
+                {% if direccion_sel %} | <strong>Filtrado por: {{ direccion_sel }}</strong>{% endif %}
+            </p>
         </div>
 
         <div class="table-responsive bg-white p-3 rounded shadow-sm">
@@ -61,8 +78,13 @@
                         <td class="text-end text-success">C$ {{ "{:,.2f}".format(r.recaudado) }}</td>
                         <td class="text-end text-danger">C$ {{ "{:,.2f}".format(r.pendiente) }}</td>
                     </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">No se encontraron movimientos para el filtro seleccionado.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
+                {% if resumen %}
                 <tfoot class="table-secondary">
                     {% set total_general = resumen | map(attribute='total') | sum %}
                     {% set total_recaudado = resumen | map(attribute='recaudado') | sum %}
@@ -74,6 +96,7 @@
                         <td class="text-end text-danger">C$ {{ "{:,.2f}".format(total_pendiente) }}</td>
                     </tr>
                 </tfoot>
+                {% endif %}
             </table>
         </div>
     </div>
