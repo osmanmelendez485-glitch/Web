@@ -16,25 +16,37 @@
         .info-sub { display: block; font-size: 0.82rem; color: #6c757d; }
         .badge-cancelado { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; font-weight: 600; }
         .badge-pendiente { background-color: #ffeded; color: #dc3545; border: 1px solid #dc3545; font-weight: 600; }
+        /* Clase para igualar el ancho de los botones */
+        .btn-fijo {
+            width: 150px; /* Ajusta este valor según el tamaño que desees */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px; /* Espacio entre icono y texto */
+        }
     </style>
     <span class="text-muted small">Versión: {{ app_version }}</span>
 </head>
 <body>
 
     <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
-    <div class="container-fluid justify-content-start"> <span class="navbar-brand mb-0 h1 me-4">MENU</span> <div class="d-flex align-items-center">
-            <a href="/propiedades" class="btn btn-outline-info btn-sm me-2">
-                <i class="bi bi-houses"></i> Ver Galería
-            </a>
-            <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm me-2">
-                <i class="bi bi-file-earmark-text"></i> Resumen
-            </a>
-
-            <a href="/logout" class="btn btn-outline-info btn-sm me-2">
-                <i class="bi bi-file-earmark-text"></i> Salir
-            </a>
+        <div class="container-fluid justify-content-start">
+            <span class="navbar-brand mb-0 h1 me-4">Contratos</span>
+            
+            <div class="d-flex align-items-center">
+                <a href="/logout" class="btn btn-outline-light btn-sm btn-fijo">
+                    <i class="bi bi-box-arrow-right"></i> Salir
+                </a>                
+                <a href="/propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2">
+                    <i class="bi bi-houses"></i> Galería
+                </a>
+                <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2">
+                    <i class="bi bi-file-bar-graph"></i> Resumen
+                </a>
+                
+            </div>
         </div>
-    </div>
+    </nav>
     </nav>
 
     <div class="container-fluid px-4">
