@@ -21,14 +21,19 @@
 <body>
 
     <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">Contratos</span>
-            <div class="d-flex align-items-center">
-                <a href="/propiedades" class="btn btn-outline-info btn-sm me-2"><i class="bi bi-houses"></i> Ver Galería</a>
-                <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm me-2"><i class="bi bi-houses"></i>resumen_propiedades</a>
-                <a href="/logout" class="btn btn-outline-light btn-sm">Cerrar Sesión</a>
-            </div>
+    <div class="container-fluid justify-content-start"> <span class="navbar-brand mb-0 h1 me-4">MENU</span> <div class="d-flex align-items-center">
+            <a href="/propiedades" class="btn btn-outline-info btn-sm me-2">
+                <i class="bi bi-houses"></i> Ver Galería
+            </a>
+            <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm me-2">
+                <i class="bi bi-file-earmark-text"></i> Resumen
+            </a>
+
+            <a href="/logout" class="btn btn-outline-info btn-sm me-2">
+                <i class="bi bi-file-earmark-text"></i> Salir
+            </a>
         </div>
+    </div>
     </nav>
 
     <div class="container-fluid px-4">
@@ -120,7 +125,7 @@
                     <thead class="table-light small">
                         <tr>
                             <th><input type="checkbox" id="checkAll" onclick="toggleAll(this)" class="form-check-input"></th>
-                            <th>Fecha</th> 
+                            <th>Fecha Inicio</th> 
                             <th>Nombre / Cédula</th>
                             <th>Contrato / Zona</th>
                             <th>Total Mes</th>
@@ -188,7 +193,7 @@
                 </div>
                 <div class="modal-body row g-3">
                     <input type="hidden" name="id" id="edit-id">
-                    <div class="col-md-4"><label class="small fw-bold">Fecha4</label><input type="date" name="fecha" id="edit-fecha" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">Fecha</label><input type="date" name="fecha" id="edit-fecha" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" id="edit-nombre" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" id="edit-apellido" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" id="edit-cedula" class="form-control"></div>

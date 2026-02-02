@@ -81,7 +81,7 @@ def dashboard():
     if not db: return "Error: No hay conexión con la base de datos."
     
     search_query = request.args.get('search', '').lower()
-    sort_by = request.args.get('sort', 'fecha')
+    sort_by = request.args.get('sort', 'fecha_inicio')
     direction = request.args.get('direction', 'desc')
     
     try:
