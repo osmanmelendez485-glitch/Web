@@ -271,15 +271,26 @@ def deshacer_deposito(e_id, p_id):
 
 
 # --- GESTIÓN DE PAGOS ---
+
 @app.route('/ver_pagos/<id>')
 def ver_pagos(id):
     if 'user' not in session: return redirect(url_for('login_page'))
     
+    # 1. Obtener datos del empleado/contrato
     doc_ref = db.collection('Empleados').document(id)
-    contrato = doc_ref.get().to_dict()
-    if not contrato: return redirect(url_for('dashboard'))
-    contrato['id'] = id
+    emp_doc = doc_ref.get()
+    
+    if not emp_doc.exists: 
+        return redirect(url_for('dashboard'))
+    
+    empleado = emp_doc.to_dict()
+    empleado['id'] = id
+    
+    # Obtener límites del contrato para filtrar visualmente
+    f_inicio = empleado.get('fecha_inicio', '1900-01-01')
+    f_fin = empleado.get('fecha_fin', '2099-12-31')
 
+    # 2. Consultar pagos ordenados
     pagos_query = doc_ref.collection('Pagos').order_by('fecha_vencimiento').stream()
     
     pagos = []
@@ -289,18 +300,29 @@ def ver_pagos(id):
     for p in pagos_query:
         p_data = p.to_dict()
         p_data['id'] = p.id
-        monto = safe_float(p_data.get('monto', 0))
-        
-        if p_data.get('estado') == 'Cancelado':
-            recaudado += monto
-        elif p_data.get('estado') == 'Pendiente':
-            pendiente += monto
+        fecha_v = p_data.get('fecha_vencimiento', '')
+
+        # FILTRO DE SEGURIDAD: Solo procesar pagos dentro del rango del contrato
+        if f_inicio <= fecha_v <= f_fin:
+            monto = safe_float(p_data.get('monto', 0))
+            estado = p_data.get('estado', 'Pendiente')
             
-        pagos.append(p_data)
+            if estado == 'Cancelado':
+                recaudado += monto
+            elif estado == 'Pendiente':
+                pendiente += monto
+                
+            pagos.append(p_data)
 
-    return render_template('pagos.html', pagos=pagos, contrato=contrato, id=id, 
-                           total_recaudado=recaudado, total_pendiente=pendiente)
+    # 3. Renderizar con los totales corregidos según el rango
+    return render_template('pagos.html', 
+                           pagos=pagos, 
+                           empleado=empleado, 
+                           id=id, 
+                           total_recaudado=recaudado, 
+                           total_pendiente=pendiente)
 
+#======
 @app.route('/toggle_pago/<e_id>/<p_id>/<nuevo_estado>')
 def toggle_pago(e_id, p_id, nuevo_estado):
     if 'user' not in session: return redirect(url_for('login_page'))
