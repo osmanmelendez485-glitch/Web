@@ -62,6 +62,7 @@
                             <div class="col-md-2"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" class="form-control form-control-sm" required></div>
                             <div class="col-md-2"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" class="form-control form-control-sm"></div>
                             <div class="col-md-2"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" class="form-control form-control-sm" required></div>
+                            <div class="col-md-2"><label class="small fw-bold">Telefono</label><input type="text" name="telefono" class="form-control form-control-sm" required></div>
                             <div class="col-md-2"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" class="form-control form-control-sm"></div>
                             <div class="row g-2">
                             <div class="col-md-2">
@@ -136,8 +137,9 @@
                             <th><input type="checkbox" id="checkAll" onclick="toggleAll(this)" class="form-check-input"></th>
                             <th>Fecha Inicio</th> 
                             <th>Nombre / Cédula</th>
-                            <th>Contrato / Zona</th>
+                            <th>#_Contrato / Zona</th>
                             <th>Contrato</th>
+                            <th>Recordar</th>
                             <th>Total Mes</th>
                             <th>Estado</th>
                             <th class="text-center">Acciones</th>
@@ -162,7 +164,26 @@
                                 </a>
                             </td>
 
-                            
+                            <td class="text-center"> <div class="d-flex justify-content-center">
+                                <div class="btn-group">
+                                    {# Usamos .get('telefono') para que si no existe, no de error #}
+                                    {% if emp.get('telefono') %}
+                                        {% set total_num = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
+                                        {% set mensaje = "Hola " ~ emp.nombre ~ ", te saluda la administración. El monto pendiente es de C$ " ~ "{:,.2f}".format(total_num) %}
+                                        
+                                        <a href="https://wa.me/{{ emp.telefono }}?text={{ mensaje|urlencode }}" 
+                                        target="_blank" 
+                                        class="btn btn-sm btn-success">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-secondary" disabled title="Sin teléfono">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </button>
+                                    {% endif %}
+                                    
+                                    </div>
+                            </td>
                             
                             <td>
                                 {% set total_fila = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
@@ -235,6 +256,7 @@
                     <div class="col-md-4"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" id="edit-nombre" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" id="edit-apellido" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" id="edit-cedula" class="form-control"></div>
+                    <div class="col-md-2"><label class="small fw-bold">telefono</label><input type="text" name="telefono" placeholder="50588888888" required></div>
                     <div class="col-md-4"><label class="small fw-bold">Inicio Contrato</label><input type="date" name="fecha_inicio" id="edit-fecha_inicio" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Fin Contrato</label><input type="date" name="fecha_fin" id="edit-fecha_fin" class="form-control"></div>
                     
@@ -312,7 +334,9 @@
             document.getElementById('edit-fecha_fin').value = button.getAttribute('data-fecha_fin');
             document.getElementById('edit-estado').value = button.getAttribute('data-estado');
             document.getElementById('edit-cedula').value = button.getAttribute('data-cedula');
-            
+            document.getElementById('edit-telefono').value = button.getAttribute('data-telefono');
+
+
             setTimeout(calcularTotalEdit, 100);
         });
 

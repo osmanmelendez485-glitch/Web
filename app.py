@@ -175,6 +175,7 @@ def save():
         'nombre': d.get('nombre'),
         'apellido': d.get('apellido'),
         'cedula': d.get('cedula'),
+        'telefono': d.get('telefono'),
         'num_contrato': num_contrato,
         'direccion': d.get('direccion'),
         'estado': d.get('estado', 'Pendiente'),
