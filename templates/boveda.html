@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Bóveda de Contratos Digitales</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
+        .table-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .btn-open { background-color: #fff1f0; color: #dc3545; border: 1px solid #dc3545; font-weight: 600; transition: 0.3s; }
+        .btn-open:hover { background-color: #dc3545; color: white; }
+        .icon-small { font-size: 1.1rem; vertical-align: middle; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary mb-4 shadow">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="/dashboard">
+                <i class="bi bi-arrow-left-circle"></i> Volver al Panel
+            </a>
+            <span class="navbar-text text-white fw-bold">Bóveda de Documentos Digitales</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0">Contratos Vinculados</h2>
+            <span class="badge bg-secondary">{{ documentos|length }} Documentos encontrados</span>
+        </div>
+        
+        <div class="table-container">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Inquilino</th>
+                            <th>No. Contrato</th>
+                            <th>Fecha Inicio</th>
+                            <th>Fecha Fin</th>
+                            <th class="text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in documentos %}
+                        <tr>
+                            <td class="fw-bold text-dark">
+                                <i class="bi bi-person-circle me-2 text-primary"></i>
+                                {{ doc.nombre }} {{ doc.apellido }}
+                            </td>
+                            <td><span class="badge bg-light text-primary border border-primary">№ {{ doc.num_contrato }}</span></td>
+                            <td class="text-muted">{{ doc.fecha_inicio }}</td>
+                            <td class="text-muted">{{ doc.fecha_fin }}</td>
+                            <td class="text-center">
+                                <a href="{{ doc.url_contrato_pdf }}" target="_blank" class="btn btn-sm btn-open px-3">
+                                    <i class="bi bi-file-earmark-pdf icon-small"></i> Abrir Contrato
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                <i class="bi bi-folder-x display-4"></i>
+                                <p class="mt-2">No se han encontrado contratos con enlaces de Drive.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
