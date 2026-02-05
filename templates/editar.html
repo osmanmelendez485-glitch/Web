@@ -27,10 +27,9 @@
                 <div class="card-body p-4">
                     <form action="/save" method="POST" class="row g-3" enctype="multipart/form-data">
                         <input type="hidden" name="id" value="{{ e.id }}">
-                        <input type="file" name="imagen_archivo" class="form-control" accept="image/*">
                         
                         <div class="col-md-4">
-                            <label>fecha</label>
+                            <label>Fecha Registro</label>
                             <input type="date" name="fecha" class="form-control" value="{{ e.fecha }}">
                         </div>
                         
@@ -65,19 +64,70 @@
                             </select>
                         </div>
 
-                        <div class="col-md-12">
-                            <label class="text-primary">Actualizar Foto de la Propiedad</label>
-                            <input type="file" name="imagen_archivo" class="form-control" accept="image/*">
-                            {% if e.foto_url %}
-                                <div class="mt-2 text-center">
-                                    <p class="small text-muted mb-1">Foto actual:</p>
-                                    <img src="{{ e.foto_url }}" class="preview-img">
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-white h-100">
+                                <label class="text-primary fw-bold"><i class="bi bi-camera"></i> Foto de Propiedad</label>
+                                <input type="file" name="imagen_archivo" class="form-control mt-2" accept="image/*">
+                                {% if e.foto_url %}
+                                    <div class="mt-2 text-center">
+                                        <img src="{{ e.foto_url }}" class="preview-img" style="max-height: 80px;">
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-12 mt-3">
+                            <label class="text-success fw-bold">Actualizar Documento de Contrato (PDF/Word)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-success text-white"><i class="bi bi-file-earmark-text"></i></span>
+                                <input type="file" name="documento_pdf" class="form-control" accept=".pdf,.doc,.docx">
+                            </div>
+                            <small class="text-muted">Sube un nuevo archivo solo si deseas reemplazar el actual.</small>
+                            
+                            {% if e.url_contrato_pdf %}
+                            <div class="mt-2 d-flex align-items-center">
+                                <span class="badge bg-light text-success border border-success p-2">
+                                    <i class="bi bi-file-check-fill me-1"></i> Contrato ya vinculado
+                                </span>
+                                <a href="{{ e.url_contrato_pdf }}" target="_blank" class="btn btn-link btn-sm text-decoration-none ms-2">
+                                    <i class="bi bi-eye"></i> Ver actual
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <td>
+                            {% if e.url_contrato_pdf %}
+                                <div class="text-center">
+                                    <a href="{{ e.url_contrato_pdf }}" target="_blank" class="badge bg-info text-dark text-decoration-none" title="Ver Contrato">
+                                        <i class="bi bi-paperclip"></i> Adjunto
+                                    </a>
+                                </div>
+                            {% else %}
+                                <div class="text-center">
+                                    <span class="badge bg-light text-muted border">Sin archivo</span>
                                 </div>
                             {% endif %}
+                        </td>
+
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light h-100">
+                                <label class="text-success fw-bold"><i class="bi bi-file-earmark-pdf"></i> Documento de Contrato</label>
+                                <input type="file" name="documento_pdf" class="form-control mt-2" accept=".pdf,.doc,.docx">
+                                <div class="mt-2">
+                                    {% if e.url_contrato_pdf %}
+                                        <a href="{{ e.url_contrato_pdf }}" target="_blank" class="btn btn-xs btn-outline-success w-100">
+                                            <i class="bi bi-eye"></i> Ver Actual
+                                        </a>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Sin adjunto</span>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
 
                         <hr class="my-4 text-muted">
-                        <h5 class="fw-bold text-primary mb-3">Información de Pagos y Contrato</h5>
+                        <h5 class="fw-bold text-primary mb-3">Información de Pagos</h5>
 
                         <div class="col-md-3">
                             <label>Fecha Inicio</label>
@@ -90,7 +140,7 @@
                         </div>
 
                         <div class="col-md-3">
-                            <label>Estado de Contrato</label>
+                            <label>Estado</label>
                             <select name="estado" class="form-select fw-bold {% if e.estado == 'Cancelado' %}text-success{% else %}text-danger{% endif %}">
                                 <option value="Pendiente" {% if e.estado == 'Pendiente' %}selected{% endif %}>⏳ Pendiente</option>
                                 <option value="Cancelado" {% if e.estado == 'Cancelado' %}selected{% endif %}>✅ Cancelado</option>
@@ -99,56 +149,35 @@
 
                         <div class="col-md-3">
                             <label class="text-primary">Depósito Inicial (C$)</label>
-                            <input type="number" step="0.01" min="0" name="deposito" class="form-control border-primary" value="{{ e.deposito or 0 }}">
+                            <input type="number" step="0.01" name="deposito" class="form-control border-primary" value="{{ e.deposito or 0 }}">
                         </div>
 
                         <div class="col-md-2">
                             <label>Internet (C$)</label>
-                            <input type="number" step="0.01" min="0" name="internet" class="calc form-control" value="{{ e.internet or 0 }}">
+                            <input type="number" step="0.01" name="internet" class="calc form-control" value="{{ e.internet or 0 }}">
                         </div>
 
                         <div class="col-md-2">
                             <label>Agua (C$)</label>
-                            <input type="number" step="0.01" min="0" name="agua" class="calc form-control" value="{{ e.agua or 0 }}">
+                            <input type="number" step="0.01" name="agua" class="calc form-control" value="{{ e.agua or 0 }}">
                         </div>
 
                         <div class="col-md-2">
                             <label>Luz (C$)</label>
-                            <input type="number" step="0.01" min="0" name="luz" class="calc form-control" value="{{ e.luz or 0 }}">
+                            <input type="number" step="0.01" name="luz" class="calc form-control" value="{{ e.luz or 0 }}">
                         </div>
 
                         <div class="col-md-2">
                             <label>Equipo (C$)</label>
-                            <input type="number" step="0.01" min="0" name="equipo" class="calc form-control" value="{{ e.equipo or 0 }}">
+                            <input type="number" step="0.01" name="equipo" class="calc form-control" value="{{ e.equipo or 0 }}">
                         </div>
-                        <div class="col-md-3">
-                            <label class="text-primary">Depósito Inicial (C$)</label>
-                            <input type="number" step="0.01" min="0" name="deposito" class="form-control border-primary" value="{{ e.deposito or 0 }}">
-                        </div>
+
                         <div class="col-md-4">
                             <label class="text-success fw-bold">Canon Mensual (C$)</label>
-                            <input type="number" step="0.01" min="0" name="canon" class="calc form-control border-success" value="{{ e.canon or 0 }}">
+                            <input type="number" step="0.01" name="canon" class="calc form-control border-success" value="{{ e.canon or 0 }}">
                         </div>
 
-                        <div class="col-md-12 mt-3">
-                            <div class="p-3 bg-total border rounded d-flex justify-content-between align-items-center">
-                                <span class="fw-bold text-muted">Total Mensual Estimado:</span>
-                                <h4 class="m-0 fw-bold text-dark" id="total_mensual">C$ 0.00</h4>
-                            </div>
-                            <small class="text-muted italic">* Este total no incluye el depósito inicial.</small>
-                        </div>
-                        
-                        <div class="col-12 mt-5 d-flex gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold" onclick="this.innerHTML='Guardando...';">
-                                <i class="bi bi-save"></i> Guardar Cambios
-                            </button>
-                             <a href="/dashboard" class="btn btn-outline-secondary px-4 d-flex align-items-center">
-                                Cancelar
-                            </a>
-                        </div>
-
-
-                    </form>
+                        </form>
                 </div>
             </div>
             <p class="text-center mt-3 text-muted small">ID de documento: <code class="user-select-all">{{ e.id }}</code></p>

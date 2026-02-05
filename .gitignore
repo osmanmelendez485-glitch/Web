@@ -5,3 +5,4 @@ static/uploads/*
 .env
 # IMPORTANTE: No subir tus credenciales reales si el repo es público
 serviceAccountKey.json
+Leer_Firebase.py

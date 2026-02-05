@@ -10,6 +10,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import firebase_admin
 from firebase_admin import credentials, firestore
 from werkzeug.utils import secure_filename
+from firebase_admin import storage
+from google.cloud.firestore_v1.base_query import FieldFilter
+
 
 app = Flask(__name__)
 app.secret_key = 'tu_llave_secreta_aqui'
@@ -117,6 +120,7 @@ def dashboard():
         return f"Error en Dashboard: {e}"
 
 # --- GUARDAR / EDITAR ---
+
 @app.route('/save', methods=['POST'])
 def save():
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -124,6 +128,8 @@ def save():
     d = request.form
     emp_id = d.get('id')
     
+
+
     # --- 1. PROCESAMIENTO SEGURO DE FECHA DE REGISTRO ---
     # Capturamos el dato y quitamos espacios
     fecha_reg_raw = d.get('fecha', '').strip()
@@ -208,14 +214,76 @@ def save():
             }
             db.collection('Empleados').document(new_id).collection('Pagos').add(pago_doc)
             fecha_venc += relativedelta(months=1)
+
+            # Al final de tu función def save():
+        #flash(f"Contrato {num_contrato} procesado", "success")
+    #return redirect(url_for('ver_contrato', num_contrato=num_contrato))
         
-        flash(f"Contrato {num_contrato} creado con éxito", "success")
+    flash(f"Contrato {num_contrato} creado con éxito", "success")
 
     return redirect(url_for('dashboard'))
 
+
+#Boveda de contratos
+
+@app.route('/boveda_contratos')  # <--- Mira que no tenga espacios al final
+def boveda_contratos():
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    docs = db.collection('Empleados').order_by('nombre').stream()
+    lista_documentos = []
+    for d in docs:
+        item = d.to_dict()
+        if item.get('url_contrato_pdf'):
+            item['id'] = d.id
+            lista_documentos.append(item)
+            
+    return render_template('boveda.html', documentos=lista_documentos)
+
 #-----------
+####Gestio de contratos
+
+@app.route('/detalle_contrato/<id>')  # Recibe el ID
+def ver_contrato(id):
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    # Buscamos directamente el documento por su ID único
+    doc_ref = db.collection('Empleados').document(id).get()
+    
+    if doc_ref.exists:
+        contrato = doc_ref.to_dict()
+        # Pasamos los datos del contrato y el ID del documento
+        return render_template('detalle_contrato.html', c=contrato, id=doc_ref.id)
+    else:
+        flash("Contrato no encontrado", "danger")
+        return redirect('/')
+
+#Editar adjunto contrato
+
+@app.route('/vincular_drive_pdf', methods=['POST'])
+def vincular_drive_pdf():
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    emp_id = request.form.get('id')
+    link_drive = request.form.get('link_pdf')
+
+    if emp_id and link_drive:
+        try:
+            # .update() SOLO modifica el campo url_contrato_pdf
+            # Mantiene intactos: nombre, cedula, canon, agua, luz, etc.
+            db.collection('Empleados').document(emp_id).update({
+                'url_contrato_pdf': link_drive
+            })
+            flash("Enlace de Google Drive vinculado con éxito", "success")
+        except Exception as e:
+            flash(f"Error al vincular: {e}", "danger")
+    
+    return redirect(url_for('ver_contrato', id=emp_id))
 
 
+
+
+#####
 @app.route('/gestionar_deposito/<e_id>/<p_id>/<accion>')
 def gestionar_deposito(e_id, p_id, accion):
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -386,8 +454,8 @@ def resumen_propiedades():
         
         # 3. Consultar subcolección de pagos usando .where()
         pagos_query = db.collection('Empleados').document(e_id).collection('Pagos')\
-            .where('fecha_vencimiento', '>=', fecha_desde)\
-            .where('fecha_vencimiento', '<=', fecha_hasta).stream()
+            .where(filter=FieldFilter('fecha_vencimiento', '>=', fecha_desde))\
+            .where(filter=FieldFilter('fecha_vencimiento', '<=', fecha_hasta)).stream()
             
         acumulado_propiedad = 0.0
         recaudado_propiedad = 0.0
@@ -421,13 +489,20 @@ def resumen_propiedades():
                            direccion_sel=direccion_sel)
 
 
+
 # app.py
 VERSION = "1.2.0" # Cambia esto cada vez que hagas un hito importante
+
 
 @app.context_processor
 def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
+
+
+
+
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

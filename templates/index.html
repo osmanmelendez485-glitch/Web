@@ -28,26 +28,17 @@
     <span class="text-muted small">Versión: {{ app_version }}</span>
 </head>
 <body>
-
-    <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
-        <div class="container-fluid justify-content-start">
-            <span class="navbar-brand mb-0 h1 me-4">Contratos</span>
-            
-            <div class="d-flex align-items-center">
-                <a href="/logout" class="btn btn-outline-light btn-sm btn-fijo">
-                    <i class="bi bi-box-arrow-right"></i> Salir
-                </a>                
-                <a href="/propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2">
-                    <i class="bi bi-houses"></i> Galería
-                </a>
-                <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2">
-                    <i class="bi bi-file-bar-graph"></i> Resumen
-                </a>
-                
+        <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
+            <div class="container-fluid justify-content-start">
+                <span class="navbar-brand mb-0 h1 me-4">Contratos</span>
+                <div class="d-flex align-items-center">
+                    <a href="/logout" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-box-arrow-right"></i> Salir</a>                
+                    <a href="/propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-houses"></i> Galería</a>
+                    <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-file-bar-graph"></i> Resumen</a>
+                    <a href="/boveda_contratos" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-shield-lock"></i> Bóveda PDF</a>
+                </div>
             </div>
-        </div>
-    </nav>
-    </nav>
+        </nav>
 
     <div class="container-fluid px-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -117,7 +108,12 @@
                             <div class="col-md-1"><label class="small fw-bold">Luz</label><input type="number" step="1" name="luz" id="reg-luz" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-1"><label class="small fw-bold">Equipo</label><input type="number" step="1" name="equipo" id="reg-equipo" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-1"><label class="small fw-bold">Canon</label><input type="number" step="1" name="canon" id="reg-canon" class="form-control form-control-sm" value="0"></div>
-                            
+                            <div class="col-md-2">
+                                <label class="small fw-bold text-success"><i class="bi bi-file-earmark-pdf"></i> Adjuntar Contrato</label>
+                                <input type="file" name="documento_pdf" class="form-control form-control-sm" accept=".pdf,.doc,.docx">
+                                <div class="form-text" style="font-size: 0.65rem;">PDF o Word únicamente.</div>
+                            </div>
+
                             <div class="col-md-2">
                                 <label class="small fw-bold text-primary">TOTAL INICIAL</label>
                                 <input type="text" id="reg-total-display" class="form-control fw-bold bg-light text-center" readonly value="C$ 0.00">
@@ -141,6 +137,7 @@
                             <th>Fecha Inicio</th> 
                             <th>Nombre / Cédula</th>
                             <th>Contrato / Zona</th>
+                            <th>Contrato</th>
                             <th>Total Mes</th>
                             <th>Estado</th>
                             <th class="text-center">Acciones</th>
@@ -160,6 +157,14 @@
                                 <span class="info-sub">{{ emp.direccion }}</span>
                             </td>
                             <td>
+                                <a href="{{ url_for('ver_contrato', id=emp.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> Vincular
+                                </a>
+                            </td>
+
+                            
+                            
+                            <td>
                                 {% set total_fila = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
                                 <span class="info-main text-dark">C$ {{ "{:,.2f}".format(total_fila) }}</span>
                                 <span class="info-sub text-muted">Monto recurrente</span>
@@ -170,20 +175,40 @@
                                 </span>
                             </td>
                             <td>
-                                <div class="btn-group w-100">
-                                    <button class="btn btn-sm btn-edit" data-bs-toggle="modal" data-bs-target="#modalEditar"
-                                        data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
-                                        data-cedula="{{ emp.cedula }}" data-num_contrato="{{ emp.num_contrato }}" 
-                                        data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
-                                        data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
-                                        data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
-                                        data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
-                                        data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <a href="/ver_pagos/{{ emp.id }}" class="btn btn-sm btn-info text-white"><i class="bi bi-calendar-check-fill"></i></a>
-                                    <a href="/delete/{{ emp.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar?')"><i class="bi bi-trash"></i></a>
-                                </div>
+                                {% if emp.estado == 'Cancelado' %}
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-secondary w-100" 
+                                            data-bs-toggle="modal" data-bs-target="#modalEditar"
+                                            data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
+                                            data-cedula="{{ emp.cedula }}" data-num_contrato="{{ emp.num_contrato }}" 
+                                            data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
+                                            data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
+                                            data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
+                                            data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
+                                            data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
+                                            <i class="bi bi-unlock"></i> Desbloquear
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-sm btn-edit" data-bs-toggle="modal" data-bs-target="#modalEditar"
+                                            data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
+                                            data-cedula="{{ emp.cedula }}" data-num_contrato="{{ emp.num_contrato }}" 
+                                            data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
+                                            data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
+                                            data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
+                                            data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
+                                            data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <a href="/ver_pagos/{{ emp.id }}" class="btn btn-sm btn-info text-white">
+                                            <i class="bi bi-calendar-check-fill"></i>
+                                        </a>
+                                        <a href="/delete/{{ emp.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar definitivamente este registro?')">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -199,7 +224,7 @@
         
     <div class="modal fade" id="modalEditar" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <form action="/save" method="POST" class="modal-content" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
+           <form action="/save" method="POST" class="modal-content" enctype="multipart/form-data" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
                 <div class="modal-header bg-warning">
                     <h5 class="modal-title fw-bold">Editar Registro</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -247,6 +272,9 @@
                         </div>
                         <small class="text-muted">Si no seleccionas un archivo, se mantendrá la foto actual.</small>
                     </div>
+                    
+
+                    
                     <div class="col-md-12 text-center border-top pt-3">
                         <label class="fw-bold text-primary">TOTAL MENSUAL (Sin Depósito)</label>
                         <h3 id="edit-total-val" class="fw-bold">C$ 0.00</h3>

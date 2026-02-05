@@ -2,90 +2,106 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Resumen Acumulado por Propiedad</title>
+    <title>Reporte_Acumulado_{{ direccion_sel if direccion_sel else 'General' }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
-        body { background-color: #f4f7f6; }
-        .card-resumen { border: none; border-radius: 12px; transition: transform 0.2s; }
-        @media print { .no-print { display: none !important; } body { background: white; } }
+        body { background-color: #f4f7f6; font-size: 0.9rem; }
+        .card-resumen { border: none; border-radius: 12px; }
+        
+        /* Ajustes específicos para Impresión */
+        @media print {
+            @page {
+                size: letter; /* Fuerza tamaño carta */
+                margin: 1cm;
+            }
+            body { 
+                background: white !important; 
+                font-size: 10pt !important; /* Letra más pequeña para impresión */
+                color: black;
+            }
+            .no-print { display: none !important; }
+            .container { width: 100% !important; max-width: 100% !important; padding: 0 !important; }
+            .shadow-sm { box-shadow: none !important; border: 1px solid #ddd !important; }
+            .table { width: 100% !important; border-collapse: collapse !important; }
+            .table th, .table td { padding: 4px 8px !important; } /* Celdas más compactas */
+            h3 { font-size: 16pt !important; }
+        }
+
+        .table-compact th, .table-compact td { padding: 0.5rem; }
     </style>
 </head>
 <body>
-    <div class="container py-5">
+    <div class="container py-4">
         <div class="d-flex justify-content-between align-items-center mb-4 no-print">
-            <a href="/dashboard" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Panel Principal</a>
-            <button onclick="window.print()" class="btn btn-dark"><i class="bi bi-printer"></i> Imprimir Reporte</button>
+            <a href="/dashboard" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Volver</a>
+            <button onclick="window.print()" class="btn btn-dark btn-sm"><i class="bi bi-printer"></i> Imprimir a PDF / Carta</button>
         </div>
 
         <div class="card card-resumen shadow-sm mb-4 no-print">
             <div class="card-body">
-                <form method="POST" class="row g-3 align-items-end">
+                <form method="POST" class="row g-2 align-items-end">
                     <div class="col-md-3">
-                        <label class="form-label fw-bold small">Fecha Desde</label>
+                        <label class="form-label fw-bold small">Desde</label>
                         <input type="date" name="desde" class="form-control form-control-sm" value="{{ desde }}">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label fw-bold small">Fecha Hasta</label>
+                        <label class="form-label fw-bold small">Hasta</label>
                         <input type="date" name="hasta" class="form-control form-control-sm" value="{{ hasta }}">
                     </div>
-                    
                     <div class="col-md-3">
-                        <label class="form-label fw-bold small">Propiedad / Dirección</label>
+                        <label class="form-label fw-bold small">Propiedad</label>
                         <select name="direccion" class="form-select form-select-sm">
-                            <option value="">Todas las propiedades</option>
+                            <option value="">Todas</option>
                             {% set opciones = ["Miguel Jarquín", "Chinandega", "Invercasa SAFI", "Modulo 1", "Modulo 2"] %}
                             {% for opcion in opciones %}
-                                <option value="{{ opcion }}" {% if direccion_sel == opcion %}selected{% endif %}>
-                                    {{ opcion }}
-                                </option>
+                                <option value="{{ opcion }}" {% if direccion_sel == opcion %}selected{% endif %}>{{ opcion }}</option>
                             {% endfor %}
                         </select>
                     </div>
-
                     <div class="col-md-3">
-                        <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-filter"></i> Generar Resumen</button>
+                        <button type="submit" class="btn btn-primary btn-sm w-100"><i class="bi bi-filter"></i> Filtrar</button>
                     </div>
                 </form>
             </div>
         </div>
 
-        <div class="text-center mb-4">
-            <h3 class="fw-bold">Resumen Acumulado de Propiedades</h3>
-            <p class="text-muted">
-                Periodo: {{ desde }} al {{ hasta }}
-                {% if direccion_sel %} | <strong>Filtrado por: {{ direccion_sel }}</strong>{% endif %}
+        <div class="text-center mb-3">
+            <h4 class="fw-bold mb-1">Resumen Acumulado de Propiedades</h4>
+            <p class="text-muted small">
+                Periodo: <strong>{{ desde }}</strong> al <strong>{{ hasta }}</strong>
+                {% if direccion_sel %} | Propiedad: <strong>{{ direccion_sel }}</strong>{% endif %}
             </p>
         </div>
 
-        <div class="table-responsive bg-white p-3 rounded shadow-sm">
-            <table class="table table-hover align-middle">
+        <div class="table-responsive bg-white p-2 rounded">
+            <table class="table table-bordered table-sm align-middle table-compact">
                 <thead class="table-light">
-                    <tr>
+                    <tr class="small text-uppercase">
                         <th>Propiedad / Dirección</th>
-                        <th>Inquilino Actual</th>
+                        <th>Inquilino</th>
                         <th class="text-end">Total Periodo</th>
                         <th class="text-end text-success">Recaudado</th>
                         <th class="text-end text-danger">Pendiente</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="small">
                     {% for r in resumen %}
                     <tr>
-                        <td><i class="bi bi-house-door text-primary me-2"></i><strong>{{ r.direccion }}</strong></td>
+                        <td><strong>{{ r.direccion }}</strong></td>
                         <td>{{ r.inquilino }}</td>
-                        <td class="text-end fw-bold">C$ {{ "{:,.2f}".format(r.total) }}</td>
+                        <td class="text-end">C$ {{ "{:,.2f}".format(r.total) }}</td>
                         <td class="text-end text-success">C$ {{ "{:,.2f}".format(r.recaudado) }}</td>
                         <td class="text-end text-danger">C$ {{ "{:,.2f}".format(r.pendiente) }}</td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">No se encontraron movimientos para el filtro seleccionado.</td>
+                        <td colspan="5" class="text-center text-muted py-3">Sin movimientos registrados.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
                 {% if resumen %}
-                <tfoot class="table-secondary">
+                <tfoot class="table-secondary small">
                     {% set total_general = resumen | map(attribute='total') | sum %}
                     {% set total_recaudado = resumen | map(attribute='recaudado') | sum %}
                     {% set total_pendiente = resumen | map(attribute='pendiente') | sum %}
@@ -98,6 +114,14 @@
                 </tfoot>
                 {% endif %}
             </table>
+        </div>
+        
+        <div class="mt-4 d-none d-print-block">
+            <div class="row pt-5 mt-5">
+                <div class="col-4 border-top text-center small">Elaborado por</div>
+                <div class="col-4"></div>
+                <div class="col-4 border-top text-center small">Recibido (Firma y Sello)</div>
+            </div>
         </div>
     </div>
 </body>
