@@ -64,8 +64,8 @@
             <div class="col-md-4">
                 <div class="property-card" onclick="mostrarResumen('{{ datos.nombre }}', '{{ datos.apellido }}', '{{ nombre_dir }}', '{{ datos.canon }}', '{{ datos.num_contrato }}', '{{ datos.fecha_fin }}', '{{ datos.estado }}')">
                     <div class="img-wrapper">
-                        <div class="overlay-status {{ 'bg-success' if datos.estado == 'Cancelado' else 'bg-danger' }}">
-                            {{ 'OCUPADO' if datos.estado == 'Cancelado' else 'PENDIENTE PAGO' }}
+                        <div class="overlay-status {{ 'bg-success' if datos.estado == 'Pendiente' else 'bg-danger' }}">
+                            {{ 'OCUPADO' if datos.estado == 'Pendiente' else 'Cancelado PAGO' }}
                         </div>
                         <img src="https://source.unsplash.com/500x400/?building,house&sig={{ loop.index }}" alt="Propiedad">
                     </div>
