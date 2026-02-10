@@ -204,7 +204,7 @@
                                         <button class="btn btn-sm btn-outline-secondary w-100" 
                                             data-bs-toggle="modal" data-bs-target="#modalEditar"
                                             data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
-                                            data-cedula="{{ emp.cedula }}" data-num_contrato="{{ emp.num_contrato }}" 
+                                            data-cedula="{{ emp.cedula }}" data-telefono="{{ emp.telefono }}" data-num_contrato="{{ emp.num_contrato }}" 
                                             data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
                                             data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
                                             data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
@@ -217,7 +217,7 @@
                                     <div class="btn-group w-100">
                                         <button class="btn btn-sm btn-edit" data-bs-toggle="modal" data-bs-target="#modalEditar"
                                             data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
-                                            data-cedula="{{ emp.cedula }}" data-num_contrato="{{ emp.num_contrato }}" 
+                                            data-cedula="{{ emp.cedula }}" data-telefono="{{ emp.telefono }}"data-num_contrato="{{ emp.num_contrato }}" 
                                             data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
                                             data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
                                             data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
@@ -259,7 +259,7 @@
                     <div class="col-md-4"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" id="edit-nombre" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" id="edit-apellido" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" id="edit-cedula" class="form-control"></div>
-                    <div class="col-md-2"><label class="small fw-bold">telefono</label><input type="text" name="telefono" placeholder="50588888888" required></div>
+                    <div class="col-md-2"><label class="small fw-bold">telefono</label><input type="text" name="telefono" id="edit-telefono" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Inicio Contrato</label><input type="date" name="fecha_inicio" id="edit-fecha_inicio" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Fin Contrato</label><input type="date" name="fecha_fin" id="edit-fecha_fin" class="form-control"></div>
                     
