@@ -61,15 +61,20 @@ def login_page():
     if 'user' in session: return redirect(url_for('dashboard'))
     return render_template('login.html')
 
-@app.route('/auth', methods=['POST'])
+@app.route('/auth', methods=['GET', 'POST']) # <--- Paso 1: Permitir ambos
 def auth():
-    user = request.form.get('user')
-    pw = request.form.get('password')
-    if user == 'admin' and pw == '1234': 
-        session['user'] = user
-        return redirect(url_for('dashboard'))
-    flash("Usuario o contraseña incorrectos", "danger")
-    return redirect(url_for('login_page'))
+    if request.method == 'POST': # <--- Paso 2: Solo procesar si es envío de formulario
+        user = request.form.get('user')
+        pw = request.form.get('password')
+        if user == 'admin' and pw == '1234': 
+            session['user'] = user
+            return redirect(url_for('dashboard'))
+        
+        flash("Usuario o contraseña incorrectos", "danger")
+        return redirect(url_for('login_page'))
+    
+    # Si alguien intenta entrar a /auth escribiendo la URL o por error:
+    return redirect(url_for('login_page')) # <--- Paso 3: Mandarlo de vuelta al login
 
 @app.route('/logout')
 def logout():
