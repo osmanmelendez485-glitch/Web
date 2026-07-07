@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Panel de Gestión - Control de Pagos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
+        .table-container { background: white; padding: 25px; border-radius: 12px; border: 1px solid #e0e0e0; }
+        .row-selected { background-color: #fff9e6 !important; }
+        #btnEliminarMasivo { display: none; }
+        .btn-edit { background-color: #ffc107; border: none; color: #000; }
+        .info-main { display: block; font-weight: bold; color: #212529; }
+        .info-sub { display: block; font-size: 0.82rem; color: #6c757d; }
+        .badge-cancelado { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; font-weight: 600; }
+        .badge-pendiente { background-color: #ffeded; color: #dc3545; border: 1px solid #dc3545; font-weight: 600; }
+        /* Clase para igualar el ancho de los botones */
+        .btn-fijo {
+            width: 150px; /* Ajusta este valor según el tamaño que desees */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px; /* Espacio entre icono y texto */
+        }
+    </style>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='logo.png') }}">
+    <span class="text-muted small">Versión: {{ app_version }}</span>
+</head>
+<body>
+        <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
+            <div class="container-fluid justify-content-start">
+                <span class="navbar-brand mb-0 h1 me-4">Contratos</span>
+                <div class="d-flex align-items-center">
+                    <a href="/logout" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-box-arrow-right"></i> Salir</a>                
+                    <a href="/propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-houses"></i> Galería</a>
+                    <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-file-bar-graph"></i> Resumen</a>
+                    <a href="/boveda_contratos" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-shield-lock"></i> Bóveda PDF</a>
+                </div>
+            </div>
+        </nav>
+
+    <div class="container-fluid px-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <div class="col-lg-12">
+                <div class="card mb-4 border-0 shadow-sm">
+                    <div class="card-header bg-white fw-bold text-uppercase small">Registrar Contrato</div>
+                    <div class="card-body">
+                        <form action="/save" method="POST" class="row g-3" enctype="multipart/form-data" onsubmit="document.getElementById('btnGuardar').disabled=true;">
+                            <div class="col-md-2"><label class="small fw-bold">Fecha</label><input type="date" name="fecha" class="form-control form-control-sm" required value="{{ now.strftime('%Y-%m-%d') }}"></div>
+                            <div class="col-md-2"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" class="form-control form-control-sm" required></div>
+                            <div class="col-md-2"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" class="form-control form-control-sm"></div>
+                            <div class="col-md-2"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" class="form-control form-control-sm" required></div>
+                            <div class="col-md-2"><label class="small fw-bold">Telefono</label><input type="text" name="telefono" class="form-control form-control-sm" required></div>
+                            <div class="col-md-2"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" class="form-control form-control-sm"></div>
+                            <div class="row g-2">
+                            <div class="col-md-2">
+                                <label class="small fw-bold">Inicio</label>
+                                <input type="date" 
+                                    id="fecha_inicio" 
+                                    name="fecha_inicio" 
+                                    class="form-control form-control-sm" 
+                                    required 
+                                    value="{{ now.strftime('%Y-%m-%d') }}">
+                            </div>
+
+                            <div class="col-md-2">
+                                <label class="small fw-bold">Fin</label>
+                                <input type="date" 
+                                    id="fecha_fin" 
+                                    name="fecha_fin" 
+                                    class="form-control form-control-sm" 
+                                    required 
+                                    value="{{ (now.year + 1) }}-{{ now.strftime('%m-%d') }}">
+                            </div>
+                        </div>
+                            
+                            <div class="col-md-2">
+                                <label class="small fw-bold">Foto Propiedad</label>
+                                <input type="file" name="imagen_archivo" class="form-control form-control-sm" accept="image/*">
+                            </div>
+                            <div class="col-md-1">
+                                <label class="small fw-bold">Depósito</label>
+                                <input type="number" step="1" name="deposito" id="reg-deposito" class="form-control form-control-sm" value="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="small fw-bold">Dirección</label>
+                                <select name="direccion" class="form-select form-select-sm">
+                                    <option value="Chinandega">Chinandega</option>
+                                    <option value="Miguel Jarquín">Miguel Jarquín</option>
+                                    <option value="Invercasa SAFI">Invercasa SAFI</option>
+                                    <option value="Modulo 1">Modulo 1</option>
+                                    <option value="Modulo 2">Modulo 2</option>
+                                    <option value="Nejapa">Nejapa</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1"><label class="small fw-bold">Internet</label><input type="number" step="1" name="internet" id="reg-internet" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Agua</label><input type="number" step="1" name="agua" id="reg-agua" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Luz</label><input type="number" step="1" name="luz" id="reg-luz" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Equipo</label><input type="number" step="1" name="equipo" id="reg-equipo" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><label class="small fw-bold">Canon</label><input type="number" step="1" name="canon" id="reg-canon" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-2">
+                                <label class="small fw-bold text-success"><i class="bi bi-file-earmark-pdf"></i> Adjuntar Contrato</label>
+                                <input type="file" name="documento_pdf" class="form-control form-control-sm" accept=".pdf,.doc,.docx">
+                                <div class="form-text" style="font-size: 0.65rem;">PDF o Word únicamente.</div>
+                            </div>
+
+                            <div class="col-md-2">
+                                <label class="small fw-bold text-primary">TOTAL INICIAL</label>
+                                <input type="text" id="reg-total-display" class="form-control fw-bold bg-light text-center" readonly value="C$ 0.00">
+                            </div>
+                            
+                            <div class="col-md-1 d-flex align-items-end">
+                                <button type="submit" id="btnGuardar" class="btn btn-primary btn-sm w-100 fw-bold">Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light small">
+                        <tr>
+                            <th><input type="checkbox" id="checkAll" onclick="toggleAll(this)" class="form-check-input"></th>
+                            <th>Fecha Inicio</th> 
+                            <th>Nombre / Cédula</th>
+                            <th>#_Contrato / Zona</th>
+                            <th>Contrato</th>
+                            <th>Recordar</th>
+                            <th>Total Mes</th>
+                            <th>Estado</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emp in empleados %}
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input select-item" value="{{ emp.id }}" onclick="updateUI()"></td>
+                            <td class="small">{{ emp.fecha }}</td> 
+                            <td>
+                                <span class="info-main">{{ emp.nombre }} {{ emp.apellido }}</span>
+                                <span class="info-sub">{{ emp.cedula }}</span>
+                            </td>
+                            <td>
+                                <span class="info-main text-primary">№ {{ emp.num_contrato or 'S/N' }}</span>
+                                <span class="info-sub">{{ emp.direccion }}</span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('ver_contrato', id=emp.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> Vincular
+                                </a>
+                            </td>
+
+                            <td class="text-center"> <div class="d-flex justify-content-center">
+                                <div class="btn-group">
+                                    {# Usamos .get('telefono') para que si no existe, no de error #}
+                                    {% if emp.get('telefono') %}
+                                        {% set total_num = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
+                                        {% set mensaje = "Hola " ~ emp.nombre ~ ", te saluda Osman. El monto pendiente es de C$ " ~ "{:,.2f}".format(total_num) %}
+                                        
+                                        <a href="https://wa.me/{{ emp.telefono }}?text={{ mensaje|urlencode }}" 
+                                        target="_blank" 
+                                        class="btn btn-sm btn-success">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-secondary" disabled title="Sin teléfono">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </button>
+                                    {% endif %}
+                                    
+                                    </div>
+                            </td>
+                            
+                            <td>
+                                {% set total_fila = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
+                                <span class="info-main text-dark">C$ {{ "{:,.2f}".format(total_fila) }}</span>
+                                <span class="info-sub text-muted">Monto recurrente</span>
+                            </td>
+                            <td>
+                                <span class="badge {{ 'badge-cancelado' if emp.estado == 'Cancelado' else 'badge-pendiente' }} rounded-pill">
+                                    {{ emp.estado }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if emp.estado == 'Cancelado' %}
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-secondary w-100" 
+                                            data-bs-toggle="modal" data-bs-target="#modalEditar"
+                                            data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
+                                            data-cedula="{{ emp.cedula }}" data-telefono="{{ emp.telefono }}" data-num_contrato="{{ emp.num_contrato }}" 
+                                            data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
+                                            data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
+                                            data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
+                                            data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
+                                            data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
+                                            <i class="bi bi-unlock"></i> Desbloquear
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-sm btn-edit" data-bs-toggle="modal" data-bs-target="#modalEditar"
+                                            data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
+                                            data-cedula="{{ emp.cedula }}" data-telefono="{{ emp.telefono }}"data-num_contrato="{{ emp.num_contrato }}" 
+                                            data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
+                                            data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
+                                            data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
+                                            data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
+                                            data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <a href="/ver_pagos/{{ emp.id }}" class="btn btn-sm btn-info text-white">
+                                            <i class="bi bi-calendar-check-fill"></i>
+                                        </a>
+                                        <a href="/delete/{{ emp.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar definitivamente este registro?')">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    
+    
+        
+    <div class="modal fade" id="modalEditar" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+           <form action="/save" method="POST" class="modal-content" enctype="multipart/form-data" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title fw-bold">Editar Registro</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body row g-3">
+                    <input type="hidden" name="id" id="edit-id">
+                    <div class="col-md-4"><label class="small fw-bold">Fecha</label><input type="date" name="fecha" id="edit-fecha" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">Nombre</label><input type="text" name="nombre" id="edit-nombre" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">Apellido</label><input type="text" name="apellido" id="edit-apellido" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">Cedula</label><input type="text" name="cedula" id="edit-cedula" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">telefono</label><input type="text" name="telefono" id="edit-telefono" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">Inicio Contrato</label><input type="date" name="fecha_inicio" id="edit-fecha_inicio" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">Fin Contrato</label><input type="date" name="fecha_fin" id="edit-fecha_fin" class="form-control"></div>
+                    
+                    
+                    
+
+                    <div class="col-md-4">
+                        <label class="small fw-bold">Direccion</label>
+                        <select name="direccion" id="edit-direccion" class="form-select">
+                            <option value="Miguel Jarquín">Miguel Jarquín</option>    
+                            <option value="Chinandega">Chinandega</option>
+                            <option value="Invercasa SAFI">Invercasa SAFI</option>
+                            <option value="Modulo 1">Modulo 1</option>
+                            <option value="Modulo 2">Modulo 2</option>
+                            <option value="Nejapa">Nejapa</option>
+                        </select>
+                    </div> 
+                    <div class="col-md-4">  
+                        <label class="small fw-bold">Estado</label>
+                        <select name="estado" id="edit-estado" class="form-select">
+                            <option value="Cancelado">Cancelado</option>    
+                            <option value="Pendiente">Pendiente</option>
+                        </select>
+                        {# aca se aagregan los campos para editar los datos del contrato #}
+                    </div>
+                    <div class="col-md-3"><label class="small fw-bold">Internet</label><input type="number" step="1" name="internet" id="edit-internet" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold">Agua</label><input type="number" step="1" name="agua" id="edit-agua" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold">Luz</label><input type="number" step="1" name="luz" id="edit-luz" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold">Equipo</label><input type="number" step="1" name="equipo" id="edit-equipo" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold text-success">Canon</label><input type="number" step="1" name="canon" id="edit-canon" class="form-control"></div>
+                    <div class="col-md-3"><label class="small fw-bold text-primary">Depósito</label><input type="number" step="1" name="deposito" id="edit-deposito" class="form-control"></div>
+                    <div class="col-md-12 mt-3">
+                        <label class="text-primary fw-bold">Actualizar Foto de la Propiedad</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-camera"></i></span>
+                            <input type="file" name="imagen_archivo" class="form-control" accept="image/*">
+                        </div>
+                        <small class="text-muted">Si no seleccionas un archivo, se mantendrá la foto actual.</small>
+                    </div>
+                    
+                                       
+                    <div class="col-md-12 text-center border-top pt-3">
+                        <label class="fw-bold text-primary">TOTAL MENSUAL (INDEX_MODALEDITAR)</label>
+                        <h3 id="edit-total-val" class="fw-bold">C$ 0.00</h3>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-warning fw-bold">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const modalEditar = document.getElementById('modalEditar');
+        modalEditar.addEventListener('show.bs.modal', event => {
+            const button = event.relatedTarget;
+            const getAttr = (attr) => {
+                const val = button.getAttribute(attr);
+                return (val && val !== "None" && val !== "nan") ? val : "0";
+            };
+
+            document.getElementById('edit-id').value = button.getAttribute('data-id');
+            document.getElementById('edit-fecha').value = button.getAttribute('data-fecha');
+            document.getElementById('edit-nombre').value = button.getAttribute('data-nombre');
+            document.getElementById('edit-apellido').value = button.getAttribute('data-apellido');
+            document.getElementById('edit-direccion').value = button.getAttribute('data-direccion');
+            document.getElementById('edit-internet').value = getAttr('data-internet');
+            document.getElementById('edit-agua').value = getAttr('data-agua');
+            document.getElementById('edit-luz').value = getAttr('data-luz');
+            document.getElementById('edit-canon').value = getAttr('data-canon');
+            document.getElementById('edit-equipo').value = getAttr('data-equipo');
+            document.getElementById('edit-deposito').value = getAttr('data-deposito');
+            document.getElementById('edit-fecha_inicio').value = button.getAttribute('data-fecha_inicio');
+            document.getElementById('edit-fecha_fin').value = button.getAttribute('data-fecha_fin');
+            document.getElementById('edit-estado').value = button.getAttribute('data-estado');
+            document.getElementById('edit-cedula').value = button.getAttribute('data-cedula');
+            document.getElementById('edit-telefono').value = button.getAttribute('data-telefono');
+
+
+            setTimeout(calcularTotalEdit, 100);
+        });
+
+        function calcularTotalRegistro() {
+            const fields = ['reg-internet', 'reg-agua', 'reg-luz', 'reg-canon', 'reg-equipo', 'reg-deposito',];
+            let total = 0;
+            fields.forEach(id => {
+                total += parseFloat(document.getElementById(id).value) || 0;
+            });
+            document.getElementById('reg-total-display').value = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
+        }
+
+        function calcularTotalEdit() {
+            const fields = ['edit-internet', 'edit-agua', 'edit-luz', 'edit-canon', 'edit-equipo'];
+            let total = 0;
+            fields.forEach(id => {
+                total += parseFloat(document.getElementById(id).value) || 0;
+            });
+            document.getElementById('edit-total-val').innerText = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
+        }
+
+        // Escuchadores para cálculos en tiempo real
+        document.querySelectorAll('[id^="reg-"]').forEach(inp => inp.addEventListener('input', calcularTotalRegistro));
+        document.querySelectorAll('[id^="edit-"]').forEach(inp => inp.addEventListener('input', calcularTotalEdit));
+
+        function toggleAll(source) {
+            const checkboxes = document.querySelectorAll('.select-item');
+            checkboxes.forEach(cb => {
+                cb.checked = source.checked;
+                cb.closest('tr').classList.toggle('row-selected', source.checked);
+            });
+            updateUI();
+        }
+
+        function updateUI() {
+            const selected = document.querySelectorAll('.select-item:checked');
+            const btn = document.getElementById('btnEliminarMasivo');
+            if(btn) btn.style.display = selected.length > 0 ? 'block' : 'none';
+        }
+    </script>
+    <script>
+            document.addEventListener('DOMContentLoaded', function() {
+            const inputInicio = document.getElementById('fecha_inicio');
+            const inputFin = document.getElementById('fecha_fin');
+
+            inputInicio.addEventListener('change', function() {
+                if (this.value) {
+                    // Creamos la fecha a partir del input (formato YYYY-MM-DD)
+                    // Agregamos 'T12:00:00' para evitar problemas de zona horaria
+                    let fecha = new Date(this.value + 'T12:00:00');
+                    
+                    // Sumamos exactamente 12 meses
+                    fecha.setMonth(fecha.getMonth() + 12);
+                    
+                    // Extraemos año, mes y día formateados
+                    let y = fecha.getFullYear();
+                    let m = String(fecha.getMonth() + 1).padStart(2, '0');
+                    let d = String(fecha.getDate()).padStart(2, '0');
+                    
+                    // Asignamos el nuevo valor al input de Fin
+                    inputFin.value = `${y}-${m}-${d}`;
+                    
+                    // Opcional: Feedback visual para el usuario
+                    inputFin.classList.add('is-valid');
+                    setTimeout(() => inputFin.classList.remove('is-valid'), 1500);
+                }
+            });
+        });
+</script>
+
+</body>
+
+</html>
