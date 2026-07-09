@@ -496,15 +496,15 @@ VERSION = "1.2.0" # Cambia esto cada vez que hagas un hito importante
 def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
-
 def enviar_whatsapp_recordatorio(empleado, pago):
-    # --- CREDENCIALES CONFIGURADAS DIRECTAMENTE ---
+    # Credenciales de Twilio (Copiadas exactamente de tu código funcional)
     account_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    auth_token = '8753175599c7e1d704b5ebc842875acc'
+    auth_token = 'f37008ccf06b7e55baf27f430faa9a3c'
     
+    # Inicialización limpia y directa
     client = Client(account_sid, auth_token)
 
-    # --- MENSAJE DINÁMICO ---
+    # --- MENSAJE DINÁMICO DE RENTAS ---
     mensaje = (
         f"📋 *RECORDATORIO DE PAGO* 📋\n\n"
         f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
@@ -516,14 +516,19 @@ def enviar_whatsapp_recordatorio(empleado, pago):
         f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia. ¡Muchas gracias!"
     )
 
-    # Envío forzado a tu número para validación en Sandbox
-    message = client.messages.create(
-        from_='whatsapp:+14155238886',  # Número de sandbox de Twilio
-        body=mensaje,
-        to='whatsapp:+50589475863'     # Tu número fijo
-    )
-    print(f"WhatsApp enviado con SID: {message.sid}")
-    return True
+    # Estructura de envío idéntica a tu script funcional
+    try:
+        message = client.messages.create(
+            from_='whatsapp:+14155238886', # Número de sandbox de Twilio
+            body=mensaje,
+            to='whatsapp:+50589475863'
+        )
+        print(f"WhatsApp enviado con SID: {message.sid}")
+        return True
+    except Exception as e:
+        print(f"❌ Error al enviar WhatsApp por Twilio: {e}")
+        # Lanzamos el error para que la ruta de diagnóstico lo atrape y lo pinte en el navegador
+        raise e
 
 from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
 
