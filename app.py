@@ -497,15 +497,11 @@ def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
 
-
 def enviar_whatsapp_recordatorio(empleado, pago):
-    # Credenciales leídas desde Render
-    account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
-    auth_token = os.environ.get('TWILIO_AUTH_TOKEN')
+    # --- CREDENCIALES CONFIGURADAS DIRECTAMENTE ---
+    account_sid = 'AC55a32288ebca14e7286265bd207bd593'
+    auth_token = 'f37008ccf06b7e55baf27f430faa9a3c'
     
-    if not account_sid or not auth_token:
-        raise Exception("Faltan las variables de entorno TWILIO_ACCOUNT_SID o TWILIO_AUTH_TOKEN en Render.")
-        
     client = Client(account_sid, auth_token)
 
     # --- MENSAJE DINÁMICO ---
@@ -520,7 +516,7 @@ def enviar_whatsapp_recordatorio(empleado, pago):
         f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia. ¡Muchas gracias!"
     )
 
-    # Forzado temporalmente a tu número fijo de WhatsApp para validación
+    # Envío forzado a tu número para validación en Sandbox
     message = client.messages.create(
         from_='whatsapp:+14155238886',  # Número de sandbox de Twilio
         body=mensaje,
@@ -528,8 +524,6 @@ def enviar_whatsapp_recordatorio(empleado, pago):
     )
     print(f"WhatsApp enviado con SID: {message.sid}")
     return True
-
-
 
 from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
 
