@@ -494,16 +494,13 @@ def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
 
-
 def enviar_whatsapp_recordatorio(empleado, pago):
-    # Credenciales leídas de forma 100% segura desde las variables de entorno de Render/Sistema
-    account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
-    auth_token = os.environ.get('TWILIO_AUTH_TOKEN')
+    # Credenciales leídas desde las variables de entorno de Render
+    account_sid = os.environ.get('AC55a32288ebca14e7286265bd207bd593')
+    auth_token = os.environ.get('f37008ccf06b7e55baf27f430faa9a3c')
     client = Client(account_sid, auth_token)
 
-    # ... El resto del código del mensaje y el envío se queda igual ...
-
-    # --- MENSAJE MODIFICADO PARA RECORDATORIO DE RENTA/PAGO ---
+    # --- MENSAJE DINÁMICO CON DATOS DEL INQUILINO ---
     mensaje = (
         f"📋 *RECORDATORIO DE PAGO* 📋\n\n"
         f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
@@ -516,44 +513,55 @@ def enviar_whatsapp_recordatorio(empleado, pago):
     )
 
     try:
+        # Enviando temporalmente SOLO a tu número para validación
         message = client.messages.create(
             from_='whatsapp:+14155238886',  # Número de sandbox de Twilio
             body=mensaje,
-            to='whatsapp:+50589475863'     # Número destino fijo solicitado
+            to='whatsapp:+50589475863'     # <--- Destino fijo (Tú)
         )
-        print(f"WhatsApp enviado con SID: {message.sid}")
+        print(f"WhatsApp de prueba enviado con SID: {message.sid} (Inquilino simulado: {empleado.get('nombre')})")
         return True
     except Exception as e:
-        print(f"❌ Error al enviar WhatsApp por Twilio: {e}")
+        print(f"❌ Error al enviar WhatsApp de prueba por Twilio: {e}")
         return False
-@app.route('/enviar_recordatorio_wa/<e_id>/<p_id>')
-def enviar_recordatorio_wa(e_id, p_id):
-    if 'user' not in session: return redirect(url_for('login_page'))
-    
+
+
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB ---
+@app.route('/ejecutar_envio_automatico_secreto_123')
+def ejecutar_envio_automatico():
     try:
-        # 1. Obtener datos del inquilino/empleado
-        emp_ref = db.collection('Empleados').document(e_id).get()
-        # 2. Obtener datos del pago específico
-        pago_ref = db.collection('Empleados').document(e_id).collection('Pagos').document(p_id).get()
+        # 1. Obtener la fecha de hoy en formato YYYY-MM-DD
+        hoy_str = datetime.now().strftime('%Y-%m-%d')
+        print(f"🤖 Iniciando cron de prueba en la nube para la fecha: {hoy_str}")
         
-        if emp_ref.exists and pago_ref.exists:
-            empleado = emp_ref.to_dict()
-            pago = pago_ref.to_dict()
+        # 2. Recorrer la colección principal de inquilinos en Firestore
+        inquilinos = db.collection('Empleados').stream()
+        mensajes_enviados = 0
+        
+        for doc in inquilinos:
+            empleado = doc.to_dict()
+            e_id = doc.id
             
-            # 3. Invocar la función de envío
-            exito = enviar_whatsapp_recordatorio(empleado, pago)
+            # 3. Revisar los pagos de cada inquilino
+            pagos_query = db.collection('Empleados').document(e_id).collection('Pagos').stream()
             
-            if exito:
-                flash(f"Recordatorio de WhatsApp enviado con éxito para {pago.get('mes_anio')}", "success")
-            else:
-                flash("El código se ejecutó pero Twilio rechazó el envío. Revisa la consola.", "danger")
-        else:
-            flash("No se encontraron los datos del contrato o del pago.", "danger")
-            
+            for p in pagos_query:
+                pago = p.to_dict()
+                
+                # CONDICIÓN: Si el pago está Pendiente y vence HOY, se genera la alerta
+                if pago.get('estado') == 'Pendiente' and pago.get('fecha_vencimiento') == hoy_str:
+                    exito = enviar_whatsapp_recordatorio(empleado, pago)
+                    if exito:
+                        mensajes_enviados += 1
+                        
+        return jsonify({
+            "status": "success", 
+            "mensaje": f"Modo prueba completado. Se enviaron {mensajes_enviados} alertas a tu número."
+        }), 200
+
     except Exception as e:
-        flash(f"Error al procesar el recordatorio: {e}", "danger")
-        
-    return redirect(url_for('ver_pagos', id=e_id))
+        print(f"❌ Error en el automatizador de prueba diario: {e}")
+        return jsonify({"status": "error", "detalle": str(e)}), 500
 
 
 if __name__ == '__main__':
