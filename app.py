@@ -527,13 +527,20 @@ def enviar_whatsapp_recordatorio(empleado, pago):
     return True
 
 
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB ---
+
+from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
+
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ZONA HORARIA AJUSTADA) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     diagnostico = []
     mensajes_enviados = 0
     try:
-        hoy_str = datetime.now().strftime('%Y-%m-%d')
+        # Forzar la zona horaria de Nicaragua (UTC -6) de manera nativa sin librerías externas
+        zona_ni = timezone(timedelta(hours=-6))
+        hoy_str = datetime.now(zona_ni).strftime('%Y-%m-%d')
+        
+        print(f"🤖 Iniciando cron de cobros. Buscando pendientes al día (Hora Nicaragua): {hoy_str}")
         inquilinos = db.collection('Empleados').stream()
         
         total_inquilinos = 0
@@ -556,7 +563,6 @@ def ejecutar_envio_automatico():
                 
                 if estado_pago.strip().lower() == 'pendiente' and fecha_venc_str:
                     if fecha_venc_str <= hoy_str:
-                        # Ejecutar envío atrapando el error específico de Twilio si ocurre
                         try:
                             exito = enviar_whatsapp_recordatorio(empleado, pago)
                             if exito:
@@ -567,7 +573,7 @@ def ejecutar_envio_automatico():
                         
         return jsonify({
             "status": "success",
-            "fecha_servidor_hoy": hoy_str,
+            "fecha_servidor_managua": hoy_str,
             "total_inquilinos_escaneados": total_inquilinos,
             "total_pagos_totales_leidos": total_pagos_revisados,
             "mensajes_enviados_con_exito": mensajes_enviados,
@@ -576,8 +582,8 @@ def ejecutar_envio_automatico():
 
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
-    
-    
+
+        
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     # Usa debug=False para producción en Render
