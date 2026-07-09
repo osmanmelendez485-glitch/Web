@@ -496,13 +496,20 @@ VERSION = "1.2.0" # Cambia esto cada vez que hagas un hito importante
 def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
+
+
 def enviar_whatsapp_recordatorio(empleado, pago):
-    # Credenciales de Twilio (Copiadas exactamente de tu código funcional)
-    account_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    auth_token = 'f37008ccf06b7e55baf27f430faa9a3c'
+    # 1. Definimos tus credenciales reales probadas
+    real_sid = 'AC55a32288ebca14e7286265bd207bd593'
+    real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
     
-    # Inicialización limpia y directa
-    client = Client(account_sid, auth_token)
+    # 2. Forzamos la eliminación de variables del sistema en Render 
+    # para evitar que pisen o corrompan las credenciales del código.
+    os.environ.pop('TWILIO_ACCOUNT_SID', None)
+    os.environ.pop('TWILIO_AUTH_TOKEN', None)
+    
+    # 3. Inicialización limpia e inflexible
+    client = Client(real_sid, real_token)
 
     # --- MENSAJE DINÁMICO DE RENTAS ---
     mensaje = (
@@ -516,20 +523,19 @@ def enviar_whatsapp_recordatorio(empleado, pago):
         f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia. ¡Muchas gracias!"
     )
 
-    # Estructura de envío idéntica a tu script funcional
+    # Estructura protegida de envío
     try:
         message = client.messages.create(
             from_='whatsapp:+14155238886', # Número de sandbox de Twilio
             body=mensaje,
-            to='whatsapp:+50589475863'
+            to='whatsapp:+50589475863'     # Número destino fijo de pruebas
         )
         print(f"WhatsApp enviado con SID: {message.sid}")
         return True
     except Exception as e:
         print(f"❌ Error al enviar WhatsApp por Twilio: {e}")
-        # Lanzamos el error para que la ruta de diagnóstico lo atrape y lo pinte en el navegador
         raise e
-
+    
 from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
 
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ZONA HORARIA AJUSTADA) ---
