@@ -525,14 +525,13 @@ def enviar_whatsapp_recordatorio(empleado, pago):
         print(f"❌ Error al enviar WhatsApp de prueba por Twilio: {e}")
         return False
 
-
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB ---
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ACTUALIZADA) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     try:
         # 1. Obtener la fecha de hoy en formato YYYY-MM-DD
         hoy_str = datetime.now().strftime('%Y-%m-%d')
-        print(f"🤖 Iniciando cron de prueba en la nube para la fecha: {hoy_str}")
+        print(f"🤖 Iniciando cron de cobros en la nube. Buscando pendientes al día: {hoy_str}")
         
         # 2. Recorrer la colección principal de inquilinos en Firestore
         inquilinos = db.collection('Empleados').stream()
@@ -548,21 +547,24 @@ def ejecutar_envio_automatico():
             for p in pagos_query:
                 pago = p.to_dict()
                 
-                # CONDICIÓN: Si el pago está Pendiente y vence HOY, se genera la alerta
-                if pago.get('estado') == 'Pendiente' and pago.get('fecha_vencimiento') == hoy_str:
-                    exito = enviar_whatsapp_recordatorio(empleado, pago)
-                    if exito:
-                        mensajes_enviados += 1
+                # REVISIÓN DE FECHA: Evaluamos si tiene fecha asignada
+                fecha_venc_str = pago.get('fecha_vencimiento', '')
+                
+                if pago.get('estado') == 'Pendiente' and fecha_venc_str:
+                    # CONDICIÓN NUEVA: Si la fecha de vencimiento es MENOR o IGUAL al día de hoy
+                    if fecha_venc_str <= hoy_str:
+                        exito = enviar_whatsapp_recordatorio(empleado, pago)
+                        if exito:
+                            mensajes_enviados += 1
                         
         return jsonify({
             "status": "success", 
-            "mensaje": f"Modo prueba completado. Se enviaron {mensajes_enviados} alertas a tu número."
+            "mensaje": f"Modo prueba completado. Se enviaron {mensajes_enviados} alertas de pagos vencidos/actuales a tu número."
         }), 200
 
     except Exception as e:
-        print(f"❌ Error en el automatizador de prueba diario: {e}")
+        print(f"❌ Error en el automatizador de cobros: {e}")
         return jsonify({"status": "error", "detalle": str(e)}), 500
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
