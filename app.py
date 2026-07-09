@@ -525,47 +525,58 @@ def enviar_whatsapp_recordatorio(empleado, pago):
         print(f"❌ Error al enviar WhatsApp de prueba por Twilio: {e}")
         return False
 
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ACTUALIZADA) ---
+
+# --- RUTA AUTOMÁTICA CON DIAGNÓSTICO DETALLADO ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
+    diagnostico = []
+    mensajes_enviados = 0
     try:
-        # 1. Obtener la fecha de hoy en formato YYYY-MM-DD
         hoy_str = datetime.now().strftime('%Y-%m-%d')
-        print(f"🤖 Iniciando cron de cobros en la nube. Buscando pendientes al día: {hoy_str}")
-        
-        # 2. Recorrer la colección principal de inquilinos en Firestore
         inquilinos = db.collection('Empleados').stream()
-        mensajes_enviados = 0
         
+        total_inquilinos = 0
+        total_pagos_revisados = 0
+
         for doc in inquilinos:
+            total_inquilinos += 1
             empleado = doc.to_dict()
             e_id = doc.id
+            nombre_completo = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')}"
             
-            # 3. Revisar los pagos de cada inquilino
             pagos_query = db.collection('Empleados').document(e_id).collection('Pagos').stream()
             
             for p in pagos_query:
+                total_pagos_revisados += 1
                 pago = p.to_dict()
                 
-                # REVISIÓN DE FECHA: Evaluamos si tiene fecha asignada
+                estado_pago = pago.get('estado', '')
                 fecha_venc_str = pago.get('fecha_vencimiento', '')
                 
-                if pago.get('estado') == 'Pendiente' and fecha_venc_str:
-                    # CONDICIÓN NUEVA: Si la fecha de vencimiento es MENOR o IGUAL al día de hoy
+                # Evaluamos la condición (convertimos a minúsculas para asegurar coincidencia)
+                if estado_pago.strip().lower() == 'pendiente' and fecha_venc_str:
                     if fecha_venc_str <= hoy_str:
+                        # Intentamos el envío
                         exito = enviar_whatsapp_recordatorio(empleado, pago)
                         if exito:
                             mensajes_enviados += 1
+                            diagnostico.append(f"✅ Enviado con éxito: {nombre_completo} (Mes: {pago.get('mes_anio')})")
+                        else:
+                            diagnostico.append(f"❌ Twilio rechazó el envío para: {nombre_completo} (Mes: {pago.get('mes_anio')}). Revisa las credenciales en Render.")
                         
         return jsonify({
-            "status": "success", 
-            "mensaje": f"Modo prueba completado. Se enviaron {mensajes_enviados} alertas de pagos vencidos/actuales a tu número."
+            "status": "success",
+            "fecha_servidor_hoy": hoy_str,
+            "total_inquilinos_escaneados": total_inquilinos,
+            "total_pagos_totales_leidos": total_pagos_revisados,
+            "mensajes_enviados_con_exito": mensajes_enviados,
+            "detalles_del_proceso": diagnostico
         }), 200
 
     except Exception as e:
-        print(f"❌ Error en el automatizador de cobros: {e}")
         return jsonify({"status": "error", "detalle": str(e)}), 500
-
+    
+    
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     # Usa debug=False para producción en Render
