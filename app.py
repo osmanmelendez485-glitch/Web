@@ -13,7 +13,10 @@ from werkzeug.utils import secure_filename
 from firebase_admin import storage
 from google.cloud.firestore_v1.base_query import FieldFilter
 from twilio.rest import Client
+from dotenv import load_dotenv
 
+# Carga las variables desde el archivo .env si existe
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'tu_llave_secreta_aqui'
