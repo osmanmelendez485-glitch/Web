@@ -494,13 +494,18 @@ def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
 
+
 def enviar_whatsapp_recordatorio(empleado, pago):
-    # Credenciales leídas desde las variables de entorno de Render
+    # Credenciales leídas desde Render
     account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
     auth_token = os.environ.get('TWILIO_AUTH_TOKEN')
+    
+    if not account_sid or not auth_token:
+        raise Exception("Faltan las variables de entorno TWILIO_ACCOUNT_SID o TWILIO_AUTH_TOKEN en Render.")
+        
     client = Client(account_sid, auth_token)
 
-    # --- MENSAJE DINÁMICO CON DATOS DEL INQUILINO ---
+    # --- MENSAJE DINÁMICO ---
     mensaje = (
         f"📋 *RECORDATORIO DE PAGO* 📋\n\n"
         f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
@@ -512,30 +517,23 @@ def enviar_whatsapp_recordatorio(empleado, pago):
         f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia. ¡Muchas gracias!"
     )
 
-    try:
-        # Enviando temporalmente SOLO a tu número para validación
-        message = client.messages.create(
-            from_='whatsapp:+14155238886',  # Número de sandbox de Twilio
-            body=mensaje,
-            to='whatsapp:+50589475863'     # <--- Destino fijo (Tú)
-        )
-        print(f"WhatsApp de prueba enviado con SID: {message.sid} (Inquilino simulado: {empleado.get('nombre')})")
-        return True
-    except Exception as e:
-        print(f"❌ Error al enviar WhatsApp de prueba por Twilio: {e}")
-        return False
+    # Forzado temporalmente a tu número fijo de WhatsApp para validación
+    message = client.messages.create(
+        from_='whatsapp:+14155238886',  # Número de sandbox de Twilio
+        body=mensaje,
+        to='whatsapp:+50589475863'     # Tu número fijo
+    )
+    print(f"WhatsApp enviado con SID: {message.sid}")
+    return True
 
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (CORREGIDA Y COMPLETA) ---
+
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     diagnostico = []
     mensajes_enviados = 0
     try:
-        # 1. Obtener fecha de hoy en formato local (Nicaragua/Managua)
         hoy_str = datetime.now().strftime('%Y-%m-%d')
-        print(f"🤖 Iniciando cron de cobros en la nube. Buscando pendientes al día: {hoy_str}")
-        
-        # 2. Recorrer la colección principal de inquilinos
         inquilinos = db.collection('Empleados').stream()
         
         total_inquilinos = 0
@@ -547,7 +545,6 @@ def ejecutar_envio_automatico():
             e_id = doc.id
             nombre_completo = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')}"
             
-            # 3. Consultar subcolección de pagos para este inquilino
             pagos_query = db.collection('Empleados').document(e_id).collection('Pagos').stream()
             
             for p in pagos_query:
@@ -555,18 +552,18 @@ def ejecutar_envio_automatico():
                 pago = p.to_dict()
                 
                 estado_pago = pago.get('estado', '')
-                fecha_venc_str = pago.get('fecha_vencimiento', '')  # <-- CORREGIDO: Usar 'pago' en vez de 'p_data'
+                fecha_venc_str = pago.get('fecha_vencimiento', '')
                 
-                # 4. Condición: Si el pago está Pendiente y ya venció o vence hoy
                 if estado_pago.strip().lower() == 'pendiente' and fecha_venc_str:
                     if fecha_venc_str <= hoy_str:
-                        # Ejecutar envío real por Twilio
-                        exito = enviar_whatsapp_recordatorio(empleado, pago)
-                        if exito:
-                            mensajes_enviados += 1
-                            diagnostico.append(f"✅ Enviado con éxito: {nombre_completo} (Mes: {pago.get('mes_anio')})")
-                        else:
-                            diagnostico.append(f"❌ Twilio rechazó el envío para: {nombre_completo} (Mes: {pago.get('mes_anio')}). Revisa Config Environment en Render.")
+                        # Ejecutar envío atrapando el error específico de Twilio si ocurre
+                        try:
+                            exito = enviar_whatsapp_recordatorio(empleado, pago)
+                            if exito:
+                                mensajes_enviados += 1
+                                diagnostico.append(f"✅ Enviado: {nombre_completo} ({pago.get('mes_anio')})")
+                        except Exception as error_twilio:
+                            diagnostico.append(f"❌ Falló Twilio para {nombre_completo} ({pago.get('mes_anio')}). Motivo: {str(error_twilio)}")
                         
         return jsonify({
             "status": "success",
@@ -578,7 +575,6 @@ def ejecutar_envio_automatico():
         }), 200
 
     except Exception as e:
-        print(f"❌ Error crítico en el automatizador de cobros: {e}")
         return jsonify({"status": "error", "detalle": str(e)}), 500
     
     
