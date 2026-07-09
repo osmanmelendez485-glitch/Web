@@ -501,7 +501,7 @@ def inject_version():
 def enviar_whatsapp_recordatorio(empleado, pago):
     # 1. Definimos tus credenciales reales probadas
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
+    real_token = '7285deac21e9c3b507180524f69dd248'
     
     # 2. Forzamos la eliminación de variables del sistema en Render 
     # para evitar que pisen o corrompan las credenciales del código.
