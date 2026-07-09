@@ -15,6 +15,9 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from twilio.rest import Client
 from dotenv import load_dotenv
 
+from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
+
+
 # Carga las variables desde el archivo .env si existe
 load_dotenv()
 
@@ -538,27 +541,21 @@ def enviar_whatsapp_recordatorio(empleado, pago):
     
 from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
 
-
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (SOLO VIERNES) ---
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (RESPONDE SIEMPRE, ENVÍA SOLO VIERNES) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     diagnostico = []
     mensajes_enviados = 0
     try:
-        # Forzar la zona horaria de Nicaragua (UTC -6)
+        # Forzar la zona horaria de Nicaragua (UTC -6) de manera nativa
         zona_ni = timezone(timedelta(hours=-6))
         fecha_actual = datetime.now(zona_ni)
-        
-        # Validar si hoy es viernes (Lunes=0, Martes=1, Miércoles=2, Jueves=3, Viernes=4)
-        if fecha_actual.weekday() != 4:
-            return jsonify({
-                "status": "skipped",
-                "mensaje": "Hoy no es viernes. Los envíos automáticos están programados únicamente para los días viernes.",
-                "dia_actual_servidor": fecha_actual.strftime('%A (%Y-%m-%d)')
-            }), 200
-
         hoy_str = fecha_actual.strftime('%Y-%m-%d')
-        print(f"🤖 ¡Es viernes! Iniciando cron de cobros (Hora Nicaragua): {hoy_str}")
+        
+        # Determinar si hoy es viernes (Lunes=0, Martes=1, Miércoles=2, Jueves=3, Viernes=4)
+        es_viernes = (fecha_actual.weekday() == 4)
+        
+        print(f"🤖 Cron ejecutado. Fecha actual (Nicaragua): {hoy_str} | ¿Es viernes de envío?: {es_viernes}")
         
         inquilinos = db.collection('Empleados').stream()
         total_inquilinos = 0
@@ -580,18 +577,24 @@ def ejecutar_envio_automatico():
                 fecha_venc_str = pago.get('fecha_vencimiento', '')
                 
                 if estado_pago.strip().lower() == 'pendiente' and fecha_venc_str:
-                    # Sigue enviando si ya venció o vence hoy viernes
                     if fecha_venc_str <= hoy_str:
-                        try:
-                            exito = enviar_whatsapp_recordatorio(empleado, pago)
-                            if exito:
-                                mensajes_enviados += 1
-                                diagnostico.append(f"✅ Enviado: {nombre_completo} ({pago.get('mes_anio')})")
-                        except Exception as error_twilio:
-                            diagnostico.append(f"❌ Falló Twilio para {nombre_completo} ({pago.get('mes_anio')}). Motivo: {str(error_twilio)}")
+                        # SI ES VIERNES: Hace el envío real por Twilio
+                        if es_viernes:
+                            try:
+                                exito = enviar_whatsapp_recordatorio(empleado, pago)
+                                if exito:
+                                    mensajes_enviados += 1
+                                    diagnostico.append(f"✅ Enviado: {nombre_completo} ({pago.get('mes_anio')})")
+                            except Exception as error_twilio:
+                                diagnostico.append(f"❌ Falló Twilio para {nombre_completo} ({pago.get('mes_anio')}). Motivo: {str(error_twilio)}")
+                        else:
+                            # SI NO ES VIERNES: Solo lo registra en el reporte interno como "Pendiente de Viernes"
+                            diagnostico.append(f"⏳ Recordatorio pendiente para el viernes: {nombre_completo} ({pago.get('mes_anio')})")
                         
+        # Retorna SIEMPRE un estado 200 OK para que el cron-job externo no falle
         return jsonify({
             "status": "success",
+            "es_viernes_de_envio": es_viernes,
             "fecha_servidor_managua": hoy_str,
             "total_inquilinos_escaneados": total_inquilinos,
             "total_pagos_totales_leidos": total_pagos_revisados,
@@ -600,8 +603,7 @@ def ejecutar_envio_automatico():
         }), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "detalle": str(e)}), 500
-    
+        return jsonify({"status": "error", "detalle": str(e)}), 500    
         
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

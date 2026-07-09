@@ -55,7 +55,7 @@
                         <label class="form-label fw-bold small">Propiedad</label>
                         <select name="direccion" class="form-select form-select-sm">
                             <option value="">Todas</option>
-                            {% set opciones = ["Miguel Jarquín", "Chinandega", "Invercasa SAFI", "Modulo 1", "Modulo 2", "Nejapa"] %}
+                            {% set opciones = ["Miguel Jarquín", "Chinandega", "Invercasa SAFI", "Modulo 1", "Modulo 2", "Nejapa", "Provalores"] %}
                             {% for opcion in opciones %}
                                 <option value="{{ opcion }}" {% if direccion_sel == opcion %}selected{% endif %}>{{ opcion }}</option>
                             {% endfor %}
