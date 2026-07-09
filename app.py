@@ -500,7 +500,7 @@ def inject_version():
 def enviar_whatsapp_recordatorio(empleado, pago):
     # --- CREDENCIALES CONFIGURADAS DIRECTAMENTE ---
     account_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    auth_token = 'f37008ccf06b7e55baf27f430faa9a3c'
+    auth_token = '8753175599c7e1d704b5ebc842875acc'
     
     client = Client(account_sid, auth_token)
 
