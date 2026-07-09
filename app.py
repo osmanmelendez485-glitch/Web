@@ -538,19 +538,29 @@ def enviar_whatsapp_recordatorio(empleado, pago):
     
 from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
 
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ZONA HORARIA AJUSTADA) ---
+
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (SOLO VIERNES) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     diagnostico = []
     mensajes_enviados = 0
     try:
-        # Forzar la zona horaria de Nicaragua (UTC -6) de manera nativa sin librerías externas
+        # Forzar la zona horaria de Nicaragua (UTC -6)
         zona_ni = timezone(timedelta(hours=-6))
-        hoy_str = datetime.now(zona_ni).strftime('%Y-%m-%d')
+        fecha_actual = datetime.now(zona_ni)
         
-        print(f"🤖 Iniciando cron de cobros. Buscando pendientes al día (Hora Nicaragua): {hoy_str}")
+        # Validar si hoy es viernes (Lunes=0, Martes=1, Miércoles=2, Jueves=3, Viernes=4)
+        if fecha_actual.weekday() != 4:
+            return jsonify({
+                "status": "skipped",
+                "mensaje": "Hoy no es viernes. Los envíos automáticos están programados únicamente para los días viernes.",
+                "dia_actual_servidor": fecha_actual.strftime('%A (%Y-%m-%d)')
+            }), 200
+
+        hoy_str = fecha_actual.strftime('%Y-%m-%d')
+        print(f"🤖 ¡Es viernes! Iniciando cron de cobros (Hora Nicaragua): {hoy_str}")
+        
         inquilinos = db.collection('Empleados').stream()
-        
         total_inquilinos = 0
         total_pagos_revisados = 0
 
@@ -570,6 +580,7 @@ def ejecutar_envio_automatico():
                 fecha_venc_str = pago.get('fecha_vencimiento', '')
                 
                 if estado_pago.strip().lower() == 'pendiente' and fecha_venc_str:
+                    # Sigue enviando si ya venció o vence hoy viernes
                     if fecha_venc_str <= hoy_str:
                         try:
                             exito = enviar_whatsapp_recordatorio(empleado, pago)
@@ -590,7 +601,7 @@ def ejecutar_envio_automatico():
 
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
-
+    
         
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
