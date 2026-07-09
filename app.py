@@ -496,8 +496,8 @@ def inject_version():
 
 def enviar_whatsapp_recordatorio(empleado, pago):
     # Credenciales leídas desde las variables de entorno de Render
-    account_sid = os.environ.get('AC55a32288ebca14e7286265bd207bd593')
-    auth_token = os.environ.get('f37008ccf06b7e55baf27f430faa9a3c')
+    account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
+    auth_token = os.environ.get('TWILIO_AUTH_TOKEN')
     client = Client(account_sid, auth_token)
 
     # --- MENSAJE DINÁMICO CON DATOS DEL INQUILINO ---
@@ -576,7 +576,7 @@ def ejecutar_envio_automatico():
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
     
-    
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     # Usa debug=False para producción en Render
