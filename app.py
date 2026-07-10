@@ -17,7 +17,6 @@ from dotenv import load_dotenv
 
 from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
 
-
 # Carga las variables desde el archivo .env si existe
 load_dotenv()
 
@@ -539,7 +538,7 @@ def enviar_whatsapp_recordatorio(empleado, pago):
         print(f"❌ Error al enviar WhatsApp por Twilio: {e}")
         raise e
     
-from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
+
 
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (RESPONDE SIEMPRE, ENVÍA SOLO VIERNES) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
