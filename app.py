@@ -536,18 +536,18 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
 
 
 # --- FUNCIÓN EN SEGUNDO PLANO (Agrupa, valida fecha única y ejecuta) ---
-def proceso_interno_comprobacion(hoy_str, es_Sabado):
+def proceso_interno_comprobacion(hoy_str, es_sabado):
     print(f"🔄 Hilo secundario iniciado. Verificando control de envío para: {hoy_str}")
     try:
-        # 1. REVISAR EN FIREBASE SI YA SE ENVIÓ HOY
+        # 1. REVISAR EN FIREBASE SI YA SE ENVIÓ HOY (SÁBADO)
         config_ref = db.collection('Configuracion_Cron').document('control_envios')
         config_doc = config_ref.get()
         
         if config_doc.exists:
             ultima_fecha_envio = config_doc.to_dict().get('ultima_fecha_exitosa', '')
-            if ultima_fecha_envio == hoy_str and es_Sabado:
-                print(f"🛑 Cancelado: Los recordatorios consolidado del día de hoy ({hoy_str}) ya fueron enviados en un ciclo anterior.")
-                return  # Se sale de la función y no envía nada
+            if ultima_fecha_envio == hoy_str and es_sabado:
+                print(f"🛑 Cancelado: Los recordatorios consolidados del día de hoy ({hoy_str}) ya fueron enviados en un ciclo anterior.")
+                return  # Se sale de la función y no envía nada duplicado
 
         # 2. CONTINUAR CON EL ESCANEO SI NO SE HA ENVIADO HOY
         inquilinos = db.collection('Empleados').stream()
@@ -578,19 +578,19 @@ def proceso_interno_comprobacion(hoy_str, es_Sabado):
                         linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *Monto*: C$ {monto_recibo:,.2f} (Vence: {fecha_venc_str})"
                         detalles_pagos_inquilino.append(linea_detalle)
             
-            # Si el inquilino tiene deuda y es Sabado, enviamos
+            # Si el inquilino tiene deuda y es sábado, enviamos el mensaje consolidado
             if len(detalles_pagos_inquilino) > 0:
-                if es_Sabado:
+                if es_sabado:
                     try:
                         enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
                         hubo_envios_hoy = True
                     except Exception as error_twilio:
                         print(f"❌ Error enviando consolidado a {empleado.get('nombre')}: {error_twilio}")
                 else:
-                    print(f"⏳ Acumulado para el Sabado: {empleado.get('nombre')} (Total: C$ {monto_total_inquilino})")
+                    print(f"⏳ Acumulado para el sábado: {empleado.get('nombre')} (Total: C$ {monto_total_inquilino})")
         
-        # 3. SI FUE Sabado Y SE ENVIARON MENSAJES, GUARDAR LA FECHA PARA BLOQUEAR LOS PRÓXIMOS 15 MINUTOS
-        if es_Sabado and hubo_envios_hoy:
+        # 3. SI FUE SÁBADO Y SE ENVIARON MENSAJES, GUARDAR LA FECHA PARA BLOQUEAR LOS PRÓXIMOS CICLOS DEL DÍA
+        if es_sabado and hubo_envios_hoy:
             config_ref.set({'ultima_fecha_exitosa': hoy_str}, merge=True)
             print(f"💾 Firebase Actualizado: Se registró {hoy_str} como enviado para bloquear duplicados hoy.")
                     
@@ -606,16 +606,17 @@ def ejecutar_envio_automatico():
         fecha_actual = datetime.now(zona_ni)
         hoy_str = fecha_actual.strftime('%Y-%m-%d')
         
-        es_Sabado = (fecha_actual.weekday() == 5)
+        # CAMBIO AQUÍ: Validar si hoy es SÁBADO (Sábado = 5)
+        es_sabado = (fecha_actual.weekday() == 5)
         
-        # Lanzamos la comprobación segura en segundo plano
-        hilo = threading.Thread(target=proceso_interno_comprobacion, args=(hoy_str, es_Sabado))
+        # Lanzamos la comprobación en segundo plano
+        hilo = threading.Thread(target=proceso_interno_comprobacion, args=(hoy_str, es_sabado))
         hilo.start()
         
         return jsonify({
             "status": "success",
-            "mensaje": "Petición recibida. Validación de envío único en proceso.",
-            "es_Sabado_de_envio": es_Sabado,
+            "mensaje": "Petición recibida. Validación de envío único para los sábados en proceso.",
+            "es_sabado_de_envio": es_sabado,
             "fecha_servidor_managua": hoy_str
         }), 200
 
