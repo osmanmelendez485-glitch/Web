@@ -500,9 +500,6 @@ def inject_version():
     return dict(app_version=VERSION)
 
 
-import threading
-from datetime import datetime, timezone, timedelta
-
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
     real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
