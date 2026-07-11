@@ -500,16 +500,23 @@ def inject_version():
     return dict(app_version=VERSION)
 
 
+from datetime import datetime, timezone, timedelta
+
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
+    # 1. Credenciales fijas y verificadas de Twilio
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
     real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
     
+    # 2. Limpieza de variables del sistema en Render para evitar choques
     os.environ.pop('TWILIO_ACCOUNT_SID', None)
     os.environ.pop('TWILIO_AUTH_TOKEN', None)
     
+    # 3. Inicialización del cliente
     client = Client(real_sid, real_token)
 
+    # Concatena todos los meses vencidos en líneas individuales
     bloque_detalles = "\n".join(detalles_pagos)
+
     mensaje = (
         f"📋 *ESTADO DE CUENTA CONSOLIDADO* 📋\n\n"
         f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
@@ -521,37 +528,54 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
 
     try:
         message = client.messages.create(
-            from_='whatsapp:+14155238886',
+            from_='whatsapp:+14155238886',  # Sandbox oficial de Twilio
             body=mensaje,
-            to='whatsapp:+50589475863'
+            to='whatsapp:+50589475863'     # Tu número móvil de pruebas
         )
-        print(f"✅ WhatsApp Consolidado enviado a {empleado.get('nombre')} con SID: {message.sid}")
+        print(f"✅ WhatsApp Consolidado enviado con SID: {message.sid}")
         return True
     except Exception as e:
-        print(f"❌ Error interno en la API de Twilio: {e}")
+        print(f"❌ Error en Twilio API: {e}")
         raise e
 
-# --- FUNCIÓN EN SEGUNDO PLANO (Agrupa, valida fecha única y ejecuta) ---
-def proceso_interno_comprobacion(hoy_str, es_sabado):
-    print(f"🔄 Hilo secundario iniciado. Verificando control de envío para: {hoy_str}")
+
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (PROCESO LINEAL DIRECTO) ---
+@app.route('/ejecutar_envio_automatico_secreto_123')
+def ejecutar_envio_automatico():
+    diagnostico = []
+    mensajes_enviados = 0
     try:
-        # 1. REVISAR EN FIREBASE SI YA SE ENVIÓ HOY (SÁBADO)
+        # Configurar la zona horaria nativa de Nicaragua (UTC -6)
+        zona_ni = timezone(timedelta(hours=-6))
+        fecha_actual = datetime.now(zona_ni)
+        hoy_str = fecha_actual.strftime('%Y-%m-%d')
+        
+        print(f"🤖 Ejecutando análisis de cobros. Fecha (Nicaragua): {hoy_str}")
+        
+        # 1. REVISAR EN FIREBASE SI YA SE HIZO EL ENVÍO HOY
         config_ref = db.collection('Configuracion_Cron').document('control_envios')
         config_doc = config_ref.get()
         
         if config_doc.exists:
             ultima_fecha_envio = config_doc.to_dict().get('ultima_fecha_exitosa', '')
-            if ultima_fecha_envio == hoy_str and es_sabado:
-                print(f"🛑 Cancelado: Los recordatorios consolidados del día de hoy ({hoy_str}) ya fueron enviados en un ciclo anterior.")
-                return  # Se sale para evitar duplicados
+            if ultima_fecha_envio == hoy_str:
+                return jsonify({
+                    "status": "skipped",
+                    "mensaje": f"Los recordatorios del dia de hoy ({hoy_str}) ya fueron enviados en un ciclo previo.",
+                    "fecha_servidor_managua": hoy_str
+                }), 200
 
-        # 2. CONTINUAR CON EL ESCANEO SI NO SE HA ENVIADO HOY
+        # 2. PROCESAR Y ESCANEAR CUENTAS SI ES LA PRIMERA VEZ DEL ĐÍA
         inquilinos = db.collection('Empleados').stream()
+        total_inquilinos = 0
+        total_pagos_revisados = 0
         hubo_envios_hoy = False
         
         for doc in inquilinos:
+            total_inquilinos += 1
             empleado = doc.to_dict()
             e_id = doc.id
+            nombre_completo = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')}"
             
             detalles_pagos_inquilino = []
             monto_total_inquilino = 0.0
@@ -559,6 +583,7 @@ def proceso_interno_comprobacion(hoy_str, es_sabado):
             pagos_query = db.collection('Empleados').document(e_id).collection('Pagos').stream()
             
             for p in pagos_query:
+                total_pagos_revisados += 1
                 pago = p.to_dict()
                 estado_pago = pago.get('estado', '')
                 fecha_venc_str = pago.get('fecha_vencimiento', '')
@@ -574,49 +599,38 @@ def proceso_interno_comprobacion(hoy_str, es_sabado):
                         linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *Monto*: C$ {monto_recibo:,.2f} (Vence: {fecha_venc_str})"
                         detalles_pagos_inquilino.append(linea_detalle)
             
-            # CORRECCIÓN AQUÍ: Usamos len() para verificar si la lista contiene elementos
+            # Si el inquilino acumuló saldos pendientes, se le envía UN SOLO mensaje consolidado
             if len(detalles_pagos_inquilino) > 0:
-                if es_sabado:
-                    try:
-                        enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
-                        hubo_envios_hoy = True
-                    except Exception as error_twilio:
-                        print(f"❌ Error enviando consolidado a {empleado.get('nombre')}: {error_twilio}")
-                else:
-                    print(f"⏳ Acumulado para el sábado: {empleado.get('nombre')} (Total: C$ {monto_total_inquilino})")
+                try:
+                    enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
+                    mensajes_enviados += 1
+                    hubo_envios_hoy = True
+                    diagnostico.append(f"✅ Consolidado Enviado: {nombre_completo} (Total: C$ {monto_total_inquilino:,.2f})")
+                except Exception as error_twilio:
+                    diagnostico.append(f"❌ Error en Twilio para {nombre_completo}: {str(error_twilio)}")
         
-        # 3. SI FUE SÁBADO Y SE ENVIARON MENSAJES, GUARDAR LA FECHA PARA BLOQUEAR LOS PRÓXIMOS CICLOS DEL DÍA
-        if es_sabado and hubo_envios_hoy:
+        # 3. SI SE LOGRARON ENVIAR MENSAJES CON ÉXITO, GUARDAR LA FECHA EN FIREBASE PARA BLOQUEAR EL RESTO DEL DÍA
+        if hubo_envios_hoy:
             config_ref.set({'ultima_fecha_exitosa': hoy_str}, merge=True)
-            print(f"💾 Firebase Actualizado: Se registró {hoy_str} como enviado para bloquear duplicados hoy.")
-                    
-    except Exception as e:
-        print(f"❌ Error crítico en el proceso de segundo plano: {e}")
-        
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (RESPUESTA INMEDIATA 200 OK) ---
-@app.route('/ejecutar_envio_automatico_secreto_123')
-def ejecutar_envio_automatico():
-    try:
-        zona_ni = timezone(timedelta(hours=-6))
-        fecha_actual = datetime.now(zona_ni)
-        hoy_str = fecha_actual.strftime('%Y-%m-%d')
-        
-        # CAMBIO AQUÍ: Validar si hoy es SÁBADO (Sábado = 5)
-        es_sabado = (fecha_actual.weekday() == 5)
-        
-        # Lanzamos la comprobación en segundo plano
-        hilo = threading.Thread(target=proceso_interno_comprobacion, args=(hoy_str, es_sabado))
-        hilo.start()
-        
+            diagnostico.append(f"💾 Control guardado en Firebase para el dia {hoy_str}.")
+                        
         return jsonify({
             "status": "success",
-            "mensaje": "Petición recibida. Validación de envío único para los sábados en proceso.",
-            "es_sabado_de_envio": es_sabado,
-            "fecha_servidor_managua": hoy_str
+            "mensaje": "Proceso completado exitosamente de forma lineal.",
+            "fecha_servidor_managua": hoy_str,
+            "total_inquilinos_escaneados": total_inquilinos,
+            "total_pagos_totales_leidos": total_pagos_revisados,
+            "mensajes_enviados_con_exito": mensajes_enviados,
+            "detalles_del_proceso": diagnostico
         }), 200
 
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
