@@ -539,8 +539,8 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
 
 
 # --- FUNCIÓN EN SEGUNDO PLANO (Agrupa por inquilino y suma totales) ---
-def proceso_interno_comprobacion(hoy_str, es_viernes):
-    print(f"🔄 Hilo secundario iniciado. Analizando cobros agrupados... ¿Es viernes de envío?: {es_viernes}")
+def proceso_interno_comprobacion(hoy_str, es_Sabado):
+    print(f"🔄 Hilo secundario iniciado. Analizando cobros agrupados... ¿Es Sabado de envío?: {es_Sabado}")
     try:
         inquilinos = db.collection('Empleados').stream()
         
@@ -575,14 +575,14 @@ def proceso_interno_comprobacion(hoy_str, es_viernes):
             
             # Una vez revisados TODOS los pagos de ESTE inquilino, si tiene deuda acumulada, actuamos:
             if detalles_pagos_inquilino > 0:
-                if es_viernes:
+                if es_Sabado:
                     try:
                         # Se envía UN SOLO mensaje con la lista completa y el gran total sumado
                         enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
                     except Exception as error_twilio:
                         print(f"❌ Error enviando consolidado a {empleado.get('nombre')}: {error_twilio}")
                 else:
-                    print(f"⏳ Registros acumulados para el viernes para: {empleado.get('nombre')} (Total: C$ {monto_total_inquilino})")
+                    print(f"⏳ Registros acumulados para el Sabado para: {empleado.get('nombre')} (Total: C$ {monto_total_inquilino})")
                     
     except Exception as e:
         print(f"❌ Error en el proceso de segundo plano: {e}")
@@ -597,18 +597,18 @@ def ejecutar_envio_automatico():
         fecha_actual = datetime.now(zona_ni)
         hoy_str = fecha_actual.strftime('%Y-%m-%d')
         
-        # Validar si hoy es viernes (Viernes = 4)
-        es_viernes = (fecha_actual.weekday() == 4)
+        # Validar si hoy es Sabado (Sabado = 4)
+        es_Sabado = (fecha_actual.weekday() == 5)
         
         # Lanzamos el proceso de análisis y agrupación en segundo plano para responderle rápido al Cron-Job
-        hilo = threading.Thread(target=proceso_interno_comprobacion, args=(hoy_str, es_viernes))
+        hilo = threading.Thread(target=proceso_interno_comprobacion, args=(hoy_str, es_Sabado))
         hilo.start()
         
         # Respuesta veloz para cron-job.org. Adiós definitivo al error 503
         return jsonify({
             "status": "success",
             "mensaje": "Petición de escaneo consolidado recibida. Agrupando cuentas en segundo plano.",
-            "es_viernes_de_envio": es_viernes,
+            "es_Sabado_de_envio": es_Sabado,
             "fecha_servidor_managua": hoy_str
         }), 200
 
