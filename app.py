@@ -498,14 +498,16 @@ VERSION = "1.2.0" # Cambia esto cada vez que hagas un hito importante
 def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
+
+
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
-    # 1. Credenciales explícitas validadas al 100%
+    # 1. Credenciales reales y validadas al 100%
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    real_token = '125ad0c17e47e6a45bed4f733636c375'
+    real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
     
-    # 2. Inicialización directa y pura inyectando los parámetros al constructor estándar.
-    # Usar account_sid y auth_token de manera explícita obliga a la librería a ignorar el entorno.
-    client = Client(account_sid=real_sid, auth_token=real_token)
+    # 2. Inicialización limpia compatible con tu versión de Twilio
+    # Pasamos las credenciales de forma posicional directa para ignorar el entorno de Render
+    client = Client(real_sid, real_token)
 
     # Concatena todos los meses vencidos en líneas individuales
     bloque_detalles = "\n".join(detalles_pagos)
@@ -520,7 +522,7 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     )
 
     try:
-        # Envío utilizando el cliente purgado
+        # Envío utilizando el cliente
         message = client.messages.create(
             from_='whatsapp:+14155238886',  # Sandbox oficial de Twilio
             body=mensaje,
@@ -529,10 +531,9 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         print(f"✅ WhatsApp Consolidado enviado con SID: {message.sid}")
         return True
     except Exception as e:
-        # Imprimimos el error crudo en consola para diagnóstico completo
         print(f"❌ Error detallado en Twilio API: {str(e)}")
         raise e
-
+        
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (PROCESO LINEAL DIRECTO) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
