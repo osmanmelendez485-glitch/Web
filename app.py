@@ -501,7 +501,7 @@ def inject_version():
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     # 1. Credenciales explícitas validadas al 100%
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    real_token = '7285deac21e9c3b507180524f69dd248'
+    real_token = '125ad0c17e47e6a45bed4f733636c375'
     
     # 2. Inicialización directa y pura inyectando los parámetros al constructor estándar.
     # Usar account_sid y auth_token de manera explícita obliga a la librería a ignorar el entorno.
