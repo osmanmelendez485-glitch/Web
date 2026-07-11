@@ -531,7 +531,6 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         print(f"❌ Error interno en la API de Twilio: {e}")
         raise e
 
-
 # --- FUNCIÓN EN SEGUNDO PLANO (Agrupa, valida fecha única y ejecuta) ---
 def proceso_interno_comprobacion(hoy_str, es_sabado):
     print(f"🔄 Hilo secundario iniciado. Verificando control de envío para: {hoy_str}")
@@ -544,7 +543,7 @@ def proceso_interno_comprobacion(hoy_str, es_sabado):
             ultima_fecha_envio = config_doc.to_dict().get('ultima_fecha_exitosa', '')
             if ultima_fecha_envio == hoy_str and es_sabado:
                 print(f"🛑 Cancelado: Los recordatorios consolidados del día de hoy ({hoy_str}) ya fueron enviados en un ciclo anterior.")
-                return  # Se sale de la función y no envía nada duplicado
+                return  # Se sale para evitar duplicados
 
         # 2. CONTINUAR CON EL ESCANEO SI NO SE HA ENVIADO HOY
         inquilinos = db.collection('Empleados').stream()
@@ -575,7 +574,7 @@ def proceso_interno_comprobacion(hoy_str, es_sabado):
                         linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *Monto*: C$ {monto_recibo:,.2f} (Vence: {fecha_venc_str})"
                         detalles_pagos_inquilino.append(linea_detalle)
             
-            # Si el inquilino tiene deuda y es sábado, enviamos el mensaje consolidado
+            # CORRECCIÓN AQUÍ: Usamos len() para verificar si la lista contiene elementos
             if len(detalles_pagos_inquilino) > 0:
                 if es_sabado:
                     try:
@@ -592,9 +591,8 @@ def proceso_interno_comprobacion(hoy_str, es_sabado):
             print(f"💾 Firebase Actualizado: Se registró {hoy_str} como enviado para bloquear duplicados hoy.")
                     
     except Exception as e:
-        print(f"❌ Error en el proceso de segundo plano: {e}")
-
-
+        print(f"❌ Error crítico en el proceso de segundo plano: {e}")
+        
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (RESPUESTA INMEDIATA 200 OK) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
