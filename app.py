@@ -499,20 +499,23 @@ def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
 
-
-from datetime import datetime, timezone, timedelta
-
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
-    # 1. Credenciales fijas y verificadas de Twilio
+    # 1. Tus credenciales reales y validadas al 100%
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
     real_token = '7285deac21e9c3b507180524f69dd248'
     
-    # 2. Limpieza de variables del sistema en Render para evitar choques
-    os.environ.pop('TWILIO_ACCOUNT_SID', None)
-    os.environ.pop('TWILIO_AUTH_TOKEN', None)
+    # 2. Forzar la limpieza absoluta en el diccionario de entorno de Python
+    if 'TWILIO_ACCOUNT_SID' in os.environ:
+        del os.environ['TWILIO_ACCOUNT_SID']
+    if 'TWILIO_AUTH_TOKEN' in os.environ:
+        del os.environ['TWILIO_AUTH_TOKEN']
+        
+    # También limpiamos cadenas vacías que puedan reaparecer
+    os.environ['TWILIO_ACCOUNT_SID'] = ""
+    os.environ['TWILIO_AUTH_TOKEN'] = ""
     
-    # 3. Inicialización del cliente
-    client = Client(real_sid, real_token)
+    # 3. Inicialización directa pasando explícitamente SID y Token al constructor
+    client = Client(username=real_sid, password=real_token)
 
     # Concatena todos los meses vencidos en líneas individuales
     bloque_detalles = "\n".join(detalles_pagos)
@@ -527,17 +530,17 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     )
 
     try:
+        # Envío utilizando el cliente purgado
         message = client.messages.create(
             from_='whatsapp:+14155238886',  # Sandbox oficial de Twilio
             body=mensaje,
-            to='whatsapp:+50589475863'     # Tu número móvil de pruebas
+            to='whatsapp:+50589475863'     # Tu número móvil de pruebas fijo
         )
         print(f"✅ WhatsApp Consolidado enviado con SID: {message.sid}")
         return True
     except Exception as e:
-        print(f"❌ Error en Twilio API: {e}")
+        print(f"❌ Error crítico en Twilio API: {e}")
         raise e
-
 
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (PROCESO LINEAL DIRECTO) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
