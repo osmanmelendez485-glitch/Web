@@ -505,7 +505,7 @@ from datetime import datetime, timezone, timedelta
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     # 1. Credenciales fijas y verificadas de Twilio
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
+    real_token = '7285deac21e9c3b507180524f69dd248'
     
     # 2. Limpieza de variables del sistema en Render para evitar choques
     os.environ.pop('TWILIO_ACCOUNT_SID', None)
