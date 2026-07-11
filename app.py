@@ -498,24 +498,14 @@ VERSION = "1.2.0" # Cambia esto cada vez que hagas un hito importante
 def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
-
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
-    # 1. Tus credenciales reales y validadas al 100%
+    # 1. Credenciales explícitas validadas al 100%
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
     real_token = '7285deac21e9c3b507180524f69dd248'
     
-    # 2. Forzar la limpieza absoluta en el diccionario de entorno de Python
-    if 'TWILIO_ACCOUNT_SID' in os.environ:
-        del os.environ['TWILIO_ACCOUNT_SID']
-    if 'TWILIO_AUTH_TOKEN' in os.environ:
-        del os.environ['TWILIO_AUTH_TOKEN']
-        
-    # También limpiamos cadenas vacías que puedan reaparecer
-    os.environ['TWILIO_ACCOUNT_SID'] = ""
-    os.environ['TWILIO_AUTH_TOKEN'] = ""
-    
-    # 3. Inicialización directa pasando explícitamente SID y Token al constructor
-    client = Client(username=real_sid, password=real_token)
+    # 2. Inicialización directa y pura inyectando los parámetros al constructor estándar.
+    # Usar account_sid y auth_token de manera explícita obliga a la librería a ignorar el entorno.
+    client = Client(account_sid=real_sid, auth_token=real_token)
 
     # Concatena todos los meses vencidos en líneas individuales
     bloque_detalles = "\n".join(detalles_pagos)
@@ -539,7 +529,8 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         print(f"✅ WhatsApp Consolidado enviado con SID: {message.sid}")
         return True
     except Exception as e:
-        print(f"❌ Error crítico en Twilio API: {e}")
+        # Imprimimos el error crudo en consola para diagnóstico completo
+        print(f"❌ Error detallado en Twilio API: {str(e)}")
         raise e
 
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (PROCESO LINEAL DIRECTO) ---
