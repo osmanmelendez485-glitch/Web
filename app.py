@@ -503,7 +503,7 @@ def inject_version():
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     # 1. Credenciales reales y validadas al 100%
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
+    real_token = '125ad0c17e47e6a45bed4f733636c375'
     
     # 2. Inicialización limpia compatible con tu versión de Twilio
     # Pasamos las credenciales de forma posicional directa para ignorar el entorno de Render
@@ -533,7 +533,7 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     except Exception as e:
         print(f"❌ Error detallado en Twilio API: {str(e)}")
         raise e
-        
+
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (PROCESO LINEAL DIRECTO) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
