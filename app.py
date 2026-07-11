@@ -14,8 +14,8 @@ from firebase_admin import storage
 from google.cloud.firestore_v1.base_query import FieldFilter
 from twilio.rest import Client
 from dotenv import load_dotenv
-
-from datetime import datetime, timezone, timedelta  # Asegúrate de tener estas importaciones arriba
+import threading
+from datetime import datetime, timezone, timedelta
 
 # Carga las variables desde el archivo .env si existe
 load_dotenv()
@@ -499,110 +499,121 @@ def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
 
-
-def enviar_whatsapp_recordatorio(empleado, pago):
-    # 1. Definimos tus credenciales reales probadas
+def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
+    # 1. Credenciales reales validadas fijas
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    real_token = '7285deac21e9c3b507180524f69dd248'
+    real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
     
-    # 2. Forzamos la eliminación de variables del sistema en Render 
-    # para evitar que pisen o corrompan las credenciales del código.
+    # 2. Forzar la eliminación de variables del sistema en Render para evitar interferencias
     os.environ.pop('TWILIO_ACCOUNT_SID', None)
     os.environ.pop('TWILIO_AUTH_TOKEN', None)
     
-    # 3. Inicialización limpia e inflexible
+    # 3. Inicialización limpia del cliente Twilio
     client = Client(real_sid, real_token)
 
-    # --- MENSAJE DINÁMICO DE RENTAS ---
+    # --- CONSTRUCCIÓN DEL MENSAJE ÚNICO CONSOLIDADO ---
+    # Unimos todos los detalles individuales de los meses acumulados
+    bloque_detalles = "\n".join(detalles_pagos)
+
     mensaje = (
-        f"📋 *RECORDATORIO DE PAGO* 📋\n\n"
+        f"📋 *ESTADO DE CUENTA CONSOLIDADO* 📋\n\n"
         f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
-        f"Te saludamos para recordarte el pago pendiente de tu contrato *{empleado.get('num_contrato', 'N/A')}*.\n\n"
-        f"💵 *Detalles del recibo*:\n"
-        f"▪️ *Mes*: {pago.get('mes_anio', 'Mes Actual')}\n"
-        f"▪️ *Monto*: C$ {pago.get('monto', 0.0)}\n"
-        f"▪️ *Vencimiento*: {pago.get('fecha_vencimiento', '')}\n\n"
+        f"Te saludamos para recordarte los saldos pendientes asociados a tu contrato *{empleado.get('num_contrato', 'N/A')}*:\n\n"
+        f"{bloque_detalles}\n\n"
+        f"💰 *TOTAL A PAGAR*: *C$ {monto_total:,.2f}*\n\n"
         f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia. ¡Muchas gracias!"
     )
 
-    # Estructura protegida de envío
     try:
+        # Envío del reporte único consolidado a tu número móvil de pruebas
         message = client.messages.create(
-            from_='whatsapp:+14155238886', # Número de sandbox de Twilio
+            from_='whatsapp:+14155238886',  # Sandbox de Twilio
             body=mensaje,
-            to='whatsapp:+50589475863'     # Número destino fijo de pruebas
+            to='whatsapp:+50589475863'     # Tu número móvil destino
         )
-        print(f"WhatsApp enviado con SID: {message.sid}")
+        print(f"✅ WhatsApp Consolidado enviado a {empleado.get('nombre')} con SID: {message.sid}")
         return True
     except Exception as e:
-        print(f"❌ Error al enviar WhatsApp por Twilio: {e}")
+        print(f"❌ Error interno en la API de Twilio: {e}")
         raise e
-    
 
 
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (RESPONDE SIEMPRE, ENVÍA SOLO VIERNES) ---
-@app.route('/ejecutar_envio_automatico_secreto_123')
-def ejecutar_envio_automatico():
-    diagnostico = []
-    mensajes_enviados = 0
+# --- FUNCIÓN EN SEGUNDO PLANO (Agrupa por inquilino y suma totales) ---
+def proceso_interno_comprobacion(hoy_str, es_viernes):
+    print(f"🔄 Hilo secundario iniciado. Analizando cobros agrupados... ¿Es viernes de envío?: {es_viernes}")
     try:
-        # Forzar la zona horaria de Nicaragua (UTC -6) de manera nativa
-        zona_ni = timezone(timedelta(hours=-6))
-        fecha_actual = datetime.now(zona_ni)
-        hoy_str = fecha_actual.strftime('%Y-%m-%d')
-        
-        # Determinar si hoy es viernes (Lunes=0, Martes=1, Miércoles=2, Jueves=3, Viernes=4)
-        es_viernes = (fecha_actual.weekday() == 4)
-        
-        print(f"🤖 Cron ejecutado. Fecha actual (Nicaragua): {hoy_str} | ¿Es viernes de envío?: {es_viernes}")
-        
         inquilinos = db.collection('Empleados').stream()
-        total_inquilinos = 0
-        total_pagos_revisados = 0
-
+        
         for doc in inquilinos:
-            total_inquilinos += 1
             empleado = doc.to_dict()
             e_id = doc.id
-            nombre_completo = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')}"
+            
+            # Variables de acumulación por cada inquilino individual
+            detalles_pagos_inquilino = []
+            monto_total_inquilino = 0.0
             
             pagos_query = db.collection('Empleados').document(e_id).collection('Pagos').stream()
             
             for p in pagos_query:
-                total_pagos_revisados += 1
                 pago = p.to_dict()
-                
                 estado_pago = pago.get('estado', '')
                 fecha_venc_str = pago.get('fecha_vencimiento', '')
                 
                 if estado_pago.strip().lower() == 'pendiente' and fecha_venc_str:
                     if fecha_venc_str <= hoy_str:
-                        # SI ES VIERNES: Hace el envío real por Twilio
-                        if es_viernes:
-                            try:
-                                exito = enviar_whatsapp_recordatorio(empleado, pago)
-                                if exito:
-                                    mensajes_enviados += 1
-                                    diagnostico.append(f"✅ Enviado: {nombre_completo} ({pago.get('mes_anio')})")
-                            except Exception as error_twilio:
-                                diagnostico.append(f"❌ Falló Twilio para {nombre_completo} ({pago.get('mes_anio')}). Motivo: {str(error_twilio)}")
-                        else:
-                            # SI NO ES VIERNES: Solo lo registra en el reporte interno como "Pendiente de Viernes"
-                            diagnostico.append(f"⏳ Recordatorio pendiente para el viernes: {nombre_completo} ({pago.get('mes_anio')})")
+                        # Extraemos el monto asegurando que sea un número flotante válido
+                        try:
+                            monto_recibo = float(pago.get('monto', 0.0))
+                        except (ValueError, TypeError):
+                            monto_recibo = 0.0
+                            
+                        monto_total_inquilino += monto_recibo
                         
-        # Retorna SIEMPRE un estado 200 OK para que el cron-job externo no falle
+                        # Guardamos la línea de detalle para este mes individual
+                        linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *Monto*: C$ {monto_recibo:,.2f} (Vence: {fecha_venc_str})"
+                        detalles_pagos_inquilino.append(linea_detalle)
+            
+            # Una vez revisados TODOS los pagos de ESTE inquilino, si tiene deuda acumulada, actuamos:
+            if detalles_pagos_inquilino > 0:
+                if es_viernes:
+                    try:
+                        # Se envía UN SOLO mensaje con la lista completa y el gran total sumado
+                        enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
+                    except Exception as error_twilio:
+                        print(f"❌ Error enviando consolidado a {empleado.get('nombre')}: {error_twilio}")
+                else:
+                    print(f"⏳ Registros acumulados para el viernes para: {empleado.get('nombre')} (Total: C$ {monto_total_inquilino})")
+                    
+    except Exception as e:
+        print(f"❌ Error en el proceso de segundo plano: {e}")
+
+
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (RESPUESTA INMEDIATA 200 OK) ---
+@app.route('/ejecutar_envio_automatico_secreto_123')
+def ejecutar_envio_automatico():
+    try:
+        # Configurar la zona horaria nativa de Nicaragua (UTC -6)
+        zona_ni = timezone(timedelta(hours=-6))
+        fecha_actual = datetime.now(zona_ni)
+        hoy_str = fecha_actual.strftime('%Y-%m-%d')
+        
+        # Validar si hoy es viernes (Viernes = 4)
+        es_viernes = (fecha_actual.weekday() == 4)
+        
+        # Lanzamos el proceso de análisis y agrupación en segundo plano para responderle rápido al Cron-Job
+        hilo = threading.Thread(target=proceso_interno_comprobacion, args=(hoy_str, es_viernes))
+        hilo.start()
+        
+        # Respuesta veloz para cron-job.org. Adiós definitivo al error 503
         return jsonify({
             "status": "success",
+            "mensaje": "Petición de escaneo consolidado recibida. Agrupando cuentas en segundo plano.",
             "es_viernes_de_envio": es_viernes,
-            "fecha_servidor_managua": hoy_str,
-            "total_inquilinos_escaneados": total_inquilinos,
-            "total_pagos_totales_leidos": total_pagos_revisados,
-            "mensajes_enviados_con_exito": mensajes_enviados,
-            "detalles_del_proceso": diagnostico
+            "fecha_servidor_managua": hoy_str
         }), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "detalle": str(e)}), 500    
+        return jsonify({"status": "error", "detalle": str(e)}), 500
         
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
