@@ -499,22 +499,20 @@ def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
 
+
+import threading
+from datetime import datetime, timezone, timedelta
+
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
-    # 1. Credenciales reales validadas fijas
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
     real_token = 'f37008ccf06b7e55baf27f430faa9a3c'
     
-    # 2. Forzar la eliminación de variables del sistema en Render para evitar interferencias
     os.environ.pop('TWILIO_ACCOUNT_SID', None)
     os.environ.pop('TWILIO_AUTH_TOKEN', None)
     
-    # 3. Inicialización limpia del cliente Twilio
     client = Client(real_sid, real_token)
 
-    # --- CONSTRUCCIÓN DEL MENSAJE ÚNICO CONSOLIDADO ---
-    # Unimos todos los detalles individuales de los meses acumulados
     bloque_detalles = "\n".join(detalles_pagos)
-
     mensaje = (
         f"📋 *ESTADO DE CUENTA CONSOLIDADO* 📋\n\n"
         f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
@@ -525,11 +523,10 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     )
 
     try:
-        # Envío del reporte único consolidado a tu número móvil de pruebas
         message = client.messages.create(
-            from_='whatsapp:+14155238886',  # Sandbox de Twilio
+            from_='whatsapp:+14155238886',
             body=mensaje,
-            to='whatsapp:+50589475863'     # Tu número móvil destino
+            to='whatsapp:+50589475863'
         )
         print(f"✅ WhatsApp Consolidado enviado a {empleado.get('nombre')} con SID: {message.sid}")
         return True
@@ -538,17 +535,28 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         raise e
 
 
-# --- FUNCIÓN EN SEGUNDO PLANO (Agrupa por inquilino y suma totales) ---
+# --- FUNCIÓN EN SEGUNDO PLANO (Agrupa, valida fecha única y ejecuta) ---
 def proceso_interno_comprobacion(hoy_str, es_Sabado):
-    print(f"🔄 Hilo secundario iniciado. Analizando cobros agrupados... ¿Es Sabado de envío?: {es_Sabado}")
+    print(f"🔄 Hilo secundario iniciado. Verificando control de envío para: {hoy_str}")
     try:
+        # 1. REVISAR EN FIREBASE SI YA SE ENVIÓ HOY
+        config_ref = db.collection('Configuracion_Cron').document('control_envios')
+        config_doc = config_ref.get()
+        
+        if config_doc.exists:
+            ultima_fecha_envio = config_doc.to_dict().get('ultima_fecha_exitosa', '')
+            if ultima_fecha_envio == hoy_str and es_Sabado:
+                print(f"🛑 Cancelado: Los recordatorios consolidado del día de hoy ({hoy_str}) ya fueron enviados en un ciclo anterior.")
+                return  # Se sale de la función y no envía nada
+
+        # 2. CONTINUAR CON EL ESCANEO SI NO SE HA ENVIADO HOY
         inquilinos = db.collection('Empleados').stream()
+        hubo_envios_hoy = False
         
         for doc in inquilinos:
             empleado = doc.to_dict()
             e_id = doc.id
             
-            # Variables de acumulación por cada inquilino individual
             detalles_pagos_inquilino = []
             monto_total_inquilino = 0.0
             
@@ -561,28 +569,30 @@ def proceso_interno_comprobacion(hoy_str, es_Sabado):
                 
                 if estado_pago.strip().lower() == 'pendiente' and fecha_venc_str:
                     if fecha_venc_str <= hoy_str:
-                        # Extraemos el monto asegurando que sea un número flotante válido
                         try:
                             monto_recibo = float(pago.get('monto', 0.0))
                         except (ValueError, TypeError):
                             monto_recibo = 0.0
                             
                         monto_total_inquilino += monto_recibo
-                        
-                        # Guardamos la línea de detalle para este mes individual
                         linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *Monto*: C$ {monto_recibo:,.2f} (Vence: {fecha_venc_str})"
                         detalles_pagos_inquilino.append(linea_detalle)
             
-            # Una vez revisados TODOS los pagos de ESTE inquilino, si tiene deuda acumulada, actuamos:
-            if detalles_pagos_inquilino > 0:
+            # Si el inquilino tiene deuda y es Sabado, enviamos
+            if len(detalles_pagos_inquilino) > 0:
                 if es_Sabado:
                     try:
-                        # Se envía UN SOLO mensaje con la lista completa y el gran total sumado
                         enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
+                        hubo_envios_hoy = True
                     except Exception as error_twilio:
                         print(f"❌ Error enviando consolidado a {empleado.get('nombre')}: {error_twilio}")
                 else:
-                    print(f"⏳ Registros acumulados para el Sabado para: {empleado.get('nombre')} (Total: C$ {monto_total_inquilino})")
+                    print(f"⏳ Acumulado para el Sabado: {empleado.get('nombre')} (Total: C$ {monto_total_inquilino})")
+        
+        # 3. SI FUE Sabado Y SE ENVIARON MENSAJES, GUARDAR LA FECHA PARA BLOQUEAR LOS PRÓXIMOS 15 MINUTOS
+        if es_Sabado and hubo_envios_hoy:
+            config_ref.set({'ultima_fecha_exitosa': hoy_str}, merge=True)
+            print(f"💾 Firebase Actualizado: Se registró {hoy_str} como enviado para bloquear duplicados hoy.")
                     
     except Exception as e:
         print(f"❌ Error en el proceso de segundo plano: {e}")
@@ -592,29 +602,26 @@ def proceso_interno_comprobacion(hoy_str, es_Sabado):
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     try:
-        # Configurar la zona horaria nativa de Nicaragua (UTC -6)
         zona_ni = timezone(timedelta(hours=-6))
         fecha_actual = datetime.now(zona_ni)
         hoy_str = fecha_actual.strftime('%Y-%m-%d')
         
-        # Validar si hoy es Sabado (Sabado = 4)
         es_Sabado = (fecha_actual.weekday() == 5)
         
-        # Lanzamos el proceso de análisis y agrupación en segundo plano para responderle rápido al Cron-Job
+        # Lanzamos la comprobación segura en segundo plano
         hilo = threading.Thread(target=proceso_interno_comprobacion, args=(hoy_str, es_Sabado))
         hilo.start()
         
-        # Respuesta veloz para cron-job.org. Adiós definitivo al error 503
         return jsonify({
             "status": "success",
-            "mensaje": "Petición de escaneo consolidado recibida. Agrupando cuentas en segundo plano.",
+            "mensaje": "Petición recibida. Validación de envío único en proceso.",
             "es_Sabado_de_envio": es_Sabado,
             "fecha_servidor_managua": hoy_str
         }), 200
 
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
-        
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     # Usa debug=False para producción en Render
