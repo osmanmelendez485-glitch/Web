@@ -201,9 +201,28 @@ def save():
     }
 
     # --- 5. GUARDADO Y PAGOS ---
+    
     if emp_id:
+        # 1. Actualizar los datos del documento principal del inquilino
         db.collection('Empleados').document(emp_id).update(datos)
-        flash(f"Registro {num_contrato} actualizado", "success")
+        
+        try:
+            # 2. Buscar todos los pagos asociados a este inquilino
+            pagos_viejos = db.collection('Empleados').document(emp_id).collection('Pagos').stream()
+            
+            for p in pagos_viejos:
+                p_data = p.to_dict()
+                # 3. SOLO modificamos los meses que el usuario aún NO ha pagado
+                if p_data.get('estado', 'Pendiente') == 'Pendiente':
+                    db.collection('Empleados').document(emp_id).collection('Pagos').document(p.id).update({
+                        'monto': mensualidad_base  # Le asignamos la nueva suma recalculada
+                    })
+        except Exception as err_pagos:
+            print(f"⚠️ No se pudieron actualizar las cuotas pendientes: {err_pagos}")
+
+        flash(f"Registro y cuotas pendientes de {num_contrato} actualizados", "success")
+
+
     else:
         nuevo_doc = db.collection('Empleados').add(datos)
         new_id = nuevo_doc[1].id 
@@ -367,7 +386,8 @@ def ver_pagos(id):
     pagos = []
     recaudado = 0.0
     pendiente = 0.0
-    
+    adelantos_totales = 0.0  # <- Inicializada correctamente aquí
+
     for p in pagos_query:
         p_data = p.to_dict()
         p_data['id'] = p.id
@@ -375,24 +395,42 @@ def ver_pagos(id):
 
         # FILTRO DE SEGURIDAD: Solo procesar pagos dentro del rango del contrato
         if f_inicio <= fecha_v <= f_fin:
-            monto = safe_float(p_data.get('monto', 0))
-            estado = p_data.get('estado', 'Pendiente')
+            monto_mes = safe_float(p_data.get('monto', 0))
+            estado_pago = p_data.get('estado', 'Pendiente')
             
-            if estado == 'Cancelado':
-                recaudado += monto
-            elif estado == 'Pendiente':
-                pendiente += monto
+            # --- PROTECCIÓN PARA REGISTROS VIEJOS ---
+            # Si no existen los campos nuevos en Firestore, los inicializamos en cero para evitar errores
+            if 'monto_pagado' not in p_data:
+                p_data['monto_pagado'] = monto_mes if estado_pago == 'Cancelado' else 0.0
+            if 'saldo_pendiente' not in p_data:
+                p_data['saldo_pendiente'] = monto_mes if estado_pago == 'Pendiente' else 0.0
+            if 'saldo_a_favor' not in p_data:
+                p_data['saldo_a_favor'] = 0.0
+
+            monto_pagado = safe_float(p_data.get('monto_pagado'))
+            s_pend = safe_float(p_data.get('saldo_pendiente'))
+            s_favor = safe_float(p_data.get('saldo_a_favor'))
+
+            # --- ACUMULACIÓN DE TOTALES ---
+            if estado_pago == 'Cancelado':
+                recaudado += monto_pagado
+                adelantos_totales += s_favor
+            elif estado_pago == 'Parcial':
+                recaudado += monto_pagado
+                pendiente += s_pend
+            elif estado_pago == 'Pendiente':
+                pendiente += monto_mes
                 
             pagos.append(p_data)
 
-    # 3. Renderizar con los totales corregidos según el rango
+    # 3. Renderizar enviando también los adelantos totales calculados
     return render_template('pagos.html', 
                            pagos=pagos, 
                            empleado=empleado, 
                            id=id, 
                            total_recaudado=recaudado, 
-                           total_pendiente=pendiente)
-
+                           total_pendiente=pendiente,
+                           total_adelantos=adelantos_totales)  # <- Enviado al HTML
 
 @app.route('/toggle_pago/<e_id>/<p_id>/<nuevo_estado>')
 def toggle_pago(e_id, p_id, nuevo_estado):
@@ -622,6 +660,53 @@ def ejecutar_envio_automatico():
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
 
+@app.route('/registrar_abono/<e_id>/<p_id>', methods=['POST'])
+def registrar_abono(e_id, p_id):
+    if 'user' not in session: return redirect(url_for('login_page'))
+    
+    # Capturamos el dinero que ingreses en la casilla de la web
+    monto_abonado = safe_float(request.form.get('monto_abonado'))
+    nota_opcional = request.form.get('nota', '').strip()
+    
+    try:
+        emp_ref = db.collection('Empleados').document(e_id)
+        pago_ref = emp_ref.collection('Pagos').document(p_id)
+        
+        pago_doc = pago_ref.get()
+        if not pago_doc.exists:
+            flash("El pago no existe.", "danger")
+            return redirect(url_for('ver_pagos', id=e_id))
+            
+        pago_data = pago_doc.to_dict()
+        monto_total_mes = safe_float(pago_data.get('monto', 0.0))
+        
+        saldo_pendiente = 0.0
+        saldo_a_favor = 0.0
+        nuevo_estado = "Cancelado"
+        
+        # Lógica matemática de saldos
+        if monto_abonado < monto_total_mes:
+            saldo_pendiente = monto_total_mes - monto_abonado
+            nuevo_estado = "Parcial" if monto_abonado > 0 else "Pendiente"
+        elif monto_abonado > monto_total_mes:
+            saldo_a_favor = monto_abonado - monto_total_mes
+            nuevo_estado = "Cancelado"
+            
+        # Guardamos los nuevos campos en Firestore
+        pago_ref.update({
+            'estado': nuevo_estado,
+            'monto_pagado': monto_abonado,
+            'saldo_pendiente': saldo_pendiente,
+            'saldo_a_favor': saldo_a_favor,
+            'nota': f"{pago_data.get('nota', '')} | Abono: C$ {monto_abonado}. {nota_opcional}".strip(" | ")
+        })
+        
+        flash("Abono/Adelanto grabado con éxito.", "success")
+        
+    except Exception as e:
+        flash(f"Error al procesar el abono: {e}", "danger")
+        
+    return redirect(url_for('ver_pagos', id=e_id))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

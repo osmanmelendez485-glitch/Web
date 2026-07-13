@@ -71,7 +71,27 @@
         </div>
     <div class="container py-2">
         <div class="mb-3">
-            <h4 class="fw-bold">Historial de Pagos</h4>
+            <h4 class="fw-bold no-print">Historial de Pagos</h4>
+            <div class="row g-2 mb-3 text-center no-print">
+                <div class="col-md-4">
+                    <div class="p-2 bg-success text-white rounded shadow-sm">
+                        <small>Total Recaudado</small>
+                        <h5 class="mb-0 fw-bold">C$ {{ "{:,.2f}".format(total_recaudado) }}</h5>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-2 bg-danger text-white rounded shadow-sm">
+                        <small>Total Pendiente</small>
+                        <h5 class="mb-0 fw-bold">C$ {{ "{:,.2f}".format(total_pendiente) }}</h5>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-2 bg-info text-white rounded shadow-sm">
+                        <small>Total Adelantos (Saldo a Favor)</small>
+                        <h5 class="mb-0 fw-bold">C$ {{ "{:,.2f}".format(total_adelantos) }}</h5>
+                    </div>
+                </div>
+            </div>
             <hr>
         </div>
 
@@ -107,17 +127,41 @@
                         </td>
 
                         <td>
-                            <span class="badge {% if p.estado == 'Cancelado' %}bg-success{% elif p.estado == 'Suspensión' %}bg-warning{% else %}bg-danger{% endif %}">
-                                {{ p.estado }}
-                            </span>
+                            {% if p.estado == 'Cancelado' %}
+                                <span class="badge bg-success">Cancelado</span>
+                                {% if p.saldo_a_favor > 0 %}
+                                    <br><small class="text-success"><b>Adelanto:</b> C$ {{ "{:,.2f}".format(p.saldo_a_favor) }}</small>
+                                {% endif %}
+                            {% elif p.estado == 'Parcial' %}
+                                <span class="badge bg-warning text-dark">Pago Parcial</span>
+                                <br><small class="text-danger"><b>Debe:</b> C$ {{ "{:,.2f}".format(p.saldo_pendiente) }}</small>
+                            {% elif p.estado == 'Suspensión' %}
+                                <span class="badge bg-secondary">Suspensión</span>
+                            {% else %}
+                                <span class="badge bg-danger">Pendiente</span>
+                            {% endif %}
                         </td>
                         
                         <td class="no-print text-center">
-                            <div class="btn-group">
-                                {% if p.estado == 'Pendiente' %}
-                                    <a href="/toggle_pago/{{ id }}/{{ p.id }}/Cancelado" class="btn btn-sm btn-success">Pagado</a>
-                                    
-                                    <div class="btn-group">
+                            <div class="d-flex align-items-center justify-content-center">
+                                {% if p.estado != 'Cancelado' or p.saldo_a_favor > 0 or p.saldo_pendiente > 0 %}
+                                    <form action="/registrar_abono/{{ id }}/{{ p.id }}" method="POST" class="d-inline-flex align-items-center me-1">
+                                        <input type="number" step="0.01" name="monto_abonado" 
+                                               class="form-control form-control-sm me-1" 
+                                               placeholder="Monto C$" 
+                                               value="{% if p.estado == 'Cancelado' or p.estado == 'Parcial' %}{{ p.monto_pagado }}{% else %}{{ p.monto }}{% endif %}" 
+                                               style="width: 90px;" required>
+                                        
+                                        <input type="text" name="nota" class="form-control form-control-sm me-1" placeholder="Nota" style="width: 90px;">
+                                        
+                                        <button type="submit" class="btn btn-sm btn-primary" title="Gravar Abono/Adelanto">
+                                            💾 Gravar
+                                        </button>
+                                    </form>
+                                {% endif %}
+
+                                <div class="btn-group">
+                                    {% if p.estado == 'Pendiente' or p.estado == 'Parcial' %}
                                         <button class="btn btn-sm {% if mov > 0 %}btn-success{% elif mov < 0 %}btn-danger{% else %}btn-outline-primary{% endif %} dropdown-toggle" 
                                                 data-bs-toggle="dropdown" 
                                                 aria-expanded="false"> 
@@ -129,12 +173,12 @@
                                             <li><hr class="dropdown-divider"></li>
                                             <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/ninguno">Ninguno (Revertir)</a></li>
                                         </ul>
-                                    </div>
 
-                                    <a href="/suspend/{{ id }}/{{ p.id }}" class="btn btn-sm btn-warning">Suspender</a>
-                                {% else %}
-                                    <a href="/toggle_pago/{{ id }}/{{ p.id }}/Pendiente" class="btn btn-sm btn-outline-secondary">Revertir</a>
-                                {% endif %}
+                                        <a href="/suspend/{{ id }}/{{ p.id }}" class="btn btn-sm btn-warning ms-1">Suspender</a>
+                                    {% else %}
+                                        <a href="/toggle_pago/{{ id }}/{{ p.id }}/Pendiente" class="btn btn-sm btn-outline-secondary">Revertir</a>
+                                    {% endif %}
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -147,7 +191,8 @@
                         <td class="text-end text-primary">C$ {{ "{:,.2f}".format(total_recaudado + total_pendiente) }}</td>
                         <td colspan="3" class="ps-4">
                             <span class="text-success me-3">RECAUDADO: C$ {{ "{:,.2f}".format(total_recaudado) }}</span>
-                            <span class="text-danger">PENDIENTE: C$ {{ "{:,.2f}".format(total_pendiente) }}</span>
+                            <span class="text-danger me-3">PENDIENTE: C$ {{ "{:,.2f}".format(total_pendiente) }}</span>
+                            <span class="text-info">ADELANTOS: C$ {{ "{:,.2f}".format(total_adelantos) }}</span>
                         </td>
                     </tr>
                 </tfoot>
