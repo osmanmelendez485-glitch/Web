@@ -538,15 +538,12 @@ def inject_version():
     return dict(app_version=VERSION)
 
 
-
-from datetime import datetime, timezone, timedelta
-
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     # 1. Credenciales fijas y verificadas de Twilio
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
     real_token = '9ead4c07b599ae86f5118122bbc004f9'
     
-    # 2. Limpieza de variables del sistema en Render para evitar choques de autenticación (Error 401)
+    # 2. Limpieza estricta de variables del sistema en Render para evitar el Error 401
     if 'TWILIO_ACCOUNT_SID' in os.environ:
         del os.environ['TWILIO_ACCOUNT_SID']
     if 'TWILIO_AUTH_TOKEN' in os.environ:
@@ -555,10 +552,10 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     os.environ['TWILIO_ACCOUNT_SID'] = ""
     os.environ['TWILIO_AUTH_TOKEN'] = ""
     
-    # 3. Inicialización del cliente por argumentos posicionales exactos
+    # 3. Inicialización del cliente por argumentos posicionales
     client = Client(real_sid, real_token)
 
-    # Concatena todos los meses vencidos o con saldos parciales en líneas individuales
+    # Concatena todos los meses vencidos o parciales
     bloque_detalles = "\n".join(detalles_pagos)
 
     mensaje = (
@@ -571,7 +568,6 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     )
 
     try:
-        # Envío utilizando el cliente purgado
         message = client.messages.create(
             from_='whatsapp:+14155238886',  # Sandbox oficial de Twilio
             body=mensaje,
@@ -584,7 +580,7 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         raise e
 
 
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (PROCESO LINEAL CON SOPORTE DE ABONOS) ---
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ENVÍO ÚNICO DIARIO DIARIO COMPLETO) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     diagnostico = []
@@ -595,12 +591,9 @@ def ejecutar_envio_automatico():
         fecha_actual = datetime.now(zona_ni)
         hoy_str = fecha_actual.strftime('%Y-%m-%d')
         
-        # CAMBIO: Validar si hoy es SÁBADO (Sábado = 5)
-        es_sabado = (fecha_actual.weekday() == 5)
+        print(f"🤖 Ejecutando análisis de cobros. Fecha (Nicaragua): {hoy_str}")
         
-        print(f"🤖 Ejecutando análisis de cobros. Fecha (Nicaragua): {hoy_str} | ¿Es sábado de envío?: {es_sabado}")
-        
-        # 1. REVISAR EN FIREBASE SI YA SE HIZO EL ENVÍO HOY
+        # 1. REVISAR EN FIREBASE SI YA SE HIZO EL ENVÍO HOY (CUALQUIER DÍA)
         config_ref = db.collection('Configuracion_Cron').document('control_envios')
         config_doc = config_ref.get()
         
@@ -609,11 +602,11 @@ def ejecutar_envio_automatico():
             if ultima_fecha_envio == hoy_str:
                 return jsonify({
                     "status": "skipped",
-                    "mensaje": f"Los recordatorios del dia de hoy ({hoy_str}) ya fueron enviados en un ciclo previo.",
+                    "mensaje": f"Los recordatorios del día de hoy ({hoy_str}) ya fueron enviados en un ciclo previo.",
                     "fecha_servidor_managua": hoy_str
                 }), 200
 
-        # 2. PROCESAR Y ESCANEAR CUENTAS SI ES LA PRIMERA VEZ DEL ĐÍA
+        # 2. PROCESAR Y ESCANEAR CUENTAS SI ES LA PRIMERA EJECUCIÓN DEL DÍA
         inquilinos = db.collection('Empleados').stream()
         total_inquilinos = 0
         total_pagos_revisados = 0
@@ -637,12 +630,9 @@ def ejecutar_envio_automatico():
                 estado_pago = pago.get('estado', '').strip().lower()
                 fecha_venc_str = pago.get('fecha_vencimiento', '')
                 
-                # NUEVA REGLA: Entran los recibos 'pendiente' o con abonos parciales 'parcial'
+                # Entran los recibos 'pendiente' o parciales 'parcial'
                 if (estado_pago == 'pendiente' or estado_pago == 'parcial') and fecha_venc_str:
                     if fecha_venc_str <= hoy_str:
-                        
-                        # NUEVA REGLA MATEMÁTICA: Si el estado es parcial, extraemos el 'saldo_pendiente'. 
-                        # Si es pendiente puro y no tiene ese campo, usamos el 'monto' original completo.
                         try:
                             if 'saldo_pendiente' in pago and estado_pago == 'parcial':
                                 deuda_recibo = float(pago.get('saldo_pendiente', 0.0))
@@ -651,38 +641,33 @@ def ejecutar_envio_automatico():
                         except (ValueError, TypeError):
                             deuda_recibo = 0.0
                             
-                        # Si por algún motivo el saldo remanente es 0, no lo incluimos
                         if deuda_recibo <= 0:
                             continue
                             
                         monto_total_inquilino += deuda_recibo
                         
-                        # Construimos la etiqueta según corresponda para avisarle de su abono previo
                         tipo_deuda = "Pendiente" if estado_pago == 'pendiente' else "Saldo Parcial"
                         linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *{tipo_deuda}*: C$ {deuda_recibo:,.2f} (Vence: {fecha_venc_str})"
                         detalles_pagos_inquilino.append(linea_detalle)
             
-            # Si el inquilino acumuló saldos netos pendientes, se despacha un mensaje unificado
+            # Si el inquilino acumuló saldos netos pendientes, se despacha el mensaje ya mismo
             if len(detalles_pagos_inquilino) > 0:
-                if es_sabado:
-                    try:
-                        enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
-                        mensajes_enviados += 1
-                        hubo_envios_hoy = True
-                        diagnostico.append(f"✅ Consolidado Enviado: {nombre_completo} (Deuda Total: C$ {monto_total_inquilino:,.2f})")
-                    except Exception as error_twilio:
-                        diagnostico.append(f"❌ Error en Twilio para {nombre_completo}: {str(error_twilio)}")
-                else:
-                    diagnostico.append(f"⏳ Acumulado pasivo de {nombre_completo} para el sabado (Total: C$ {monto_total_inquilino:,.2f})")
+                try:
+                    enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
+                    mensajes_enviados += 1
+                    hubo_envios_hoy = True
+                    diagnostico.append(f"✅ Consolidado Enviado: {nombre_completo} (Deuda Total: C$ {monto_total_inquilino:,.2f})")
+                except Exception as error_twilio:
+                    diagnostico.append(f"❌ Error en Twilio para {nombre_completo}: {str(error_twilio)}")
         
-        # 3. SI SE LOGRARON ENVIAR MENSAJES CON ÉXITO EL SÁBADO, SE MARCA LA COMPUERTA EN FIREBASE
-        if es_sabado and hubo_envios_hoy:
+        # 3. SI SE LOGRARON ENVIAR MENSAJES CON ÉXITO, SE MARCA LA FECHA DEL DÍA PARA CERRAR LA COMPUERTA
+        if hubo_envios_hoy:
             config_ref.set({'ultima_fecha_exitosa': hoy_str}, merge=True)
-            diagnostico.append(f"💾 Control guardado en Firebase para el dia {hoy_str}.")
+            diagnostico.append(f"💾 Control guardado en Firebase para el día {hoy_str}.")
                         
         return jsonify({
             "status": "success",
-            "mensaje": "Proceso de escaneo con soporte de abonos ejecutado con éxito.",
+            "mensaje": "Proceso de escaneo diario completado con éxito.",
             "fecha_servidor_managua": hoy_str,
             "total_inquilinos_escaneados": total_inquilinos,
             "total_pagos_totales_leidos": total_pagos_revisados,
@@ -692,7 +677,7 @@ def ejecutar_envio_automatico():
 
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
-
+    
 @app.route('/registrar_abono/<e_id>/<p_id>', methods=['POST'])
 def registrar_abono(e_id, p_id):
     if 'user' not in session: return redirect(url_for('login_page'))
