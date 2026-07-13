@@ -538,16 +538,27 @@ def inject_version():
     return dict(app_version=VERSION)
 
 
+
+from datetime import datetime, timezone, timedelta
+
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
-    # 1. Credenciales reales y validadas al 100%
+    # 1. Credenciales fijas y verificadas de Twilio
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    real_token = '125ad0c17e47e6a45bed4f733636c375'
+    real_token = '9ead4c07b599ae86f5118122bbc004f9'
     
-    # 2. Inicialización limpia compatible con tu versión de Twilio
-    # Pasamos las credenciales de forma posicional directa para ignorar el entorno de Render
+    # 2. Limpieza de variables del sistema en Render para evitar choques de autenticación (Error 401)
+    if 'TWILIO_ACCOUNT_SID' in os.environ:
+        del os.environ['TWILIO_ACCOUNT_SID']
+    if 'TWILIO_AUTH_TOKEN' in os.environ:
+        del os.environ['TWILIO_AUTH_TOKEN']
+        
+    os.environ['TWILIO_ACCOUNT_SID'] = ""
+    os.environ['TWILIO_AUTH_TOKEN'] = ""
+    
+    # 3. Inicialización del cliente por argumentos posicionales exactos
     client = Client(real_sid, real_token)
 
-    # Concatena todos los meses vencidos en líneas individuales
+    # Concatena todos los meses vencidos o con saldos parciales en líneas individuales
     bloque_detalles = "\n".join(detalles_pagos)
 
     mensaje = (
@@ -555,12 +566,12 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
         f"Te saludamos para recordarte los saldos pendientes asociados a tu contrato *{empleado.get('num_contrato', 'N/A')}*:\n\n"
         f"{bloque_detalles}\n\n"
-        f"💰 *TOTAL A PAGAR*: *C$ {monto_total:,.2f}*\n\n"
-        f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia. ¡Muchas gracias!"
+        f"💰 *TOTAL NETO PENDIENTE*: *C$ {monto_total:,.2f}*\n\n"
+        f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia correspondiente. ¡Muchas gracias!"
     )
 
     try:
-        # Envío utilizando el cliente
+        # Envío utilizando el cliente purgado
         message = client.messages.create(
             from_='whatsapp:+14155238886',  # Sandbox oficial de Twilio
             body=mensaje,
@@ -569,10 +580,11 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         print(f"✅ WhatsApp Consolidado enviado con SID: {message.sid}")
         return True
     except Exception as e:
-        print(f"❌ Error detallado en Twilio API: {str(e)}")
+        print(f"❌ Error en Twilio API: {e}")
         raise e
 
-# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (PROCESO LINEAL DIRECTO) ---
+
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (PROCESO LINEAL CON SOPORTE DE ABONOS) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     diagnostico = []
@@ -583,7 +595,10 @@ def ejecutar_envio_automatico():
         fecha_actual = datetime.now(zona_ni)
         hoy_str = fecha_actual.strftime('%Y-%m-%d')
         
-        print(f"🤖 Ejecutando análisis de cobros. Fecha (Nicaragua): {hoy_str}")
+        # CAMBIO: Validar si hoy es SÁBADO (Sábado = 5)
+        es_sabado = (fecha_actual.weekday() == 5)
+        
+        print(f"🤖 Ejecutando análisis de cobros. Fecha (Nicaragua): {hoy_str} | ¿Es sábado de envío?: {es_sabado}")
         
         # 1. REVISAR EN FIREBASE SI YA SE HIZO EL ENVÍO HOY
         config_ref = db.collection('Configuracion_Cron').document('control_envios')
@@ -618,38 +633,56 @@ def ejecutar_envio_automatico():
             for p in pagos_query:
                 total_pagos_revisados += 1
                 pago = p.to_dict()
-                estado_pago = pago.get('estado', '')
+                
+                estado_pago = pago.get('estado', '').strip().lower()
                 fecha_venc_str = pago.get('fecha_vencimiento', '')
                 
-                if estado_pago.strip().lower() == 'pendiente' and fecha_venc_str:
+                # NUEVA REGLA: Entran los recibos 'pendiente' o con abonos parciales 'parcial'
+                if (estado_pago == 'pendiente' or estado_pago == 'parcial') and fecha_venc_str:
                     if fecha_venc_str <= hoy_str:
+                        
+                        # NUEVA REGLA MATEMÁTICA: Si el estado es parcial, extraemos el 'saldo_pendiente'. 
+                        # Si es pendiente puro y no tiene ese campo, usamos el 'monto' original completo.
                         try:
-                            monto_recibo = float(pago.get('monto', 0.0))
+                            if 'saldo_pendiente' in pago and estado_pago == 'parcial':
+                                deuda_recibo = float(pago.get('saldo_pendiente', 0.0))
+                            else:
+                                deuda_recibo = float(pago.get('monto', 0.0))
                         except (ValueError, TypeError):
-                            monto_recibo = 0.0
+                            deuda_recibo = 0.0
                             
-                        monto_total_inquilino += monto_recibo
-                        linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *Monto*: C$ {monto_recibo:,.2f} (Vence: {fecha_venc_str})"
+                        # Si por algún motivo el saldo remanente es 0, no lo incluimos
+                        if deuda_recibo <= 0:
+                            continue
+                            
+                        monto_total_inquilino += deuda_recibo
+                        
+                        # Construimos la etiqueta según corresponda para avisarle de su abono previo
+                        tipo_deuda = "Pendiente" if estado_pago == 'pendiente' else "Saldo Parcial"
+                        linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *{tipo_deuda}*: C$ {deuda_recibo:,.2f} (Vence: {fecha_venc_str})"
                         detalles_pagos_inquilino.append(linea_detalle)
             
-            # Si el inquilino acumuló saldos pendientes, se le envía UN SOLO mensaje consolidado
+            # Si el inquilino acumuló saldos netos pendientes, se despacha un mensaje unificado
             if len(detalles_pagos_inquilino) > 0:
-                try:
-                    enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
-                    mensajes_enviados += 1
-                    hubo_envios_hoy = True
-                    diagnostico.append(f"✅ Consolidado Enviado: {nombre_completo} (Total: C$ {monto_total_inquilino:,.2f})")
-                except Exception as error_twilio:
-                    diagnostico.append(f"❌ Error en Twilio para {nombre_completo}: {str(error_twilio)}")
+                if es_sabado:
+                    try:
+                        enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
+                        mensajes_enviados += 1
+                        hubo_envios_hoy = True
+                        diagnostico.append(f"✅ Consolidado Enviado: {nombre_completo} (Deuda Total: C$ {monto_total_inquilino:,.2f})")
+                    except Exception as error_twilio:
+                        diagnostico.append(f"❌ Error en Twilio para {nombre_completo}: {str(error_twilio)}")
+                else:
+                    diagnostico.append(f"⏳ Acumulado pasivo de {nombre_completo} para el sabado (Total: C$ {monto_total_inquilino:,.2f})")
         
-        # 3. SI SE LOGRARON ENVIAR MENSAJES CON ÉXITO, GUARDAR LA FECHA EN FIREBASE PARA BLOQUEAR EL RESTO DEL DÍA
-        if hubo_envios_hoy:
+        # 3. SI SE LOGRARON ENVIAR MENSAJES CON ÉXITO EL SÁBADO, SE MARCA LA COMPUERTA EN FIREBASE
+        if es_sabado and hubo_envios_hoy:
             config_ref.set({'ultima_fecha_exitosa': hoy_str}, merge=True)
             diagnostico.append(f"💾 Control guardado en Firebase para el dia {hoy_str}.")
                         
         return jsonify({
             "status": "success",
-            "mensaje": "Proceso completado exitosamente de forma lineal.",
+            "mensaje": "Proceso de escaneo con soporte de abonos ejecutado con éxito.",
             "fecha_servidor_managua": hoy_str,
             "total_inquilinos_escaneados": total_inquilinos,
             "total_pagos_totales_leidos": total_pagos_revisados,

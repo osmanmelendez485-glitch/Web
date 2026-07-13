@@ -107,6 +107,7 @@
                                     <option value="Modulo 2">Modulo 2</option>
                                     <option value="Nejapa">Nejapa</option>
                                     <option value="Provalores">Provalores</option>
+                                    <option value="Prestamo">Prestamo</option>
                                 </select>
                             </div>
                             <div class="col-md-1"><label class="small fw-bold">Internet</label><input type="number" step="1" name="internet" id="reg-internet" class="form-control form-control-sm" value="0"></div>
@@ -264,6 +265,8 @@
                     <div class="col-md-4"><label class="small fw-bold">telefono</label><input type="text" name="telefono" id="edit-telefono" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Inicio Contrato</label><input type="date" name="fecha_inicio" id="edit-fecha_inicio" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">Fin Contrato</label><input type="date" name="fecha_fin" id="edit-fecha_fin" class="form-control"></div>
+                    <div class="col-md-4"><label class="small fw-bold">No. Contrato</label><input type="text" name="No. Contrato" id="edit-num_contrato" class="form-control"></div>
+                    
                     
                     
                     
@@ -278,6 +281,7 @@
                             <option value="Modulo 2">Modulo 2</option>
                             <option value="Nejapa">Nejapa</option>
                             <option value="Provalores">Provalores</option>
+                            <option value="Prestamo">Prestamo</option>
                         </select>
                     </div> 
                     <div class="col-md-4">  
@@ -342,7 +346,7 @@
             document.getElementById('edit-estado').value = button.getAttribute('data-estado');
             document.getElementById('edit-cedula').value = button.getAttribute('data-cedula');
             document.getElementById('edit-telefono').value = button.getAttribute('data-telefono');
-
+            document.getElementById('edit-num_contrato').value = button.getAttribute('data-num_contrato');
 
             setTimeout(calcularTotalEdit, 100);
         });
