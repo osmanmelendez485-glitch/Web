@@ -511,21 +511,38 @@ def resumen_propiedades():
             .where(filter=FieldFilter('fecha_vencimiento', '>=', fecha_desde))\
             .where(filter=FieldFilter('fecha_vencimiento', '<=', fecha_hasta)).stream()
             
+# ... (Tu código anterior de la ruta se mantiene igual) ...
         acumulado_propiedad = 0.0
         recaudado_propiedad = 0.0
         pendiente_propiedad = 0.0
         
         for p in pagos_query:
             p_data = p.to_dict()
-            monto = safe_float(p_data.get('monto', 0))
-            estado = p_data.get('estado', 'Pendiente')
+            monto_base = safe_float(p_data.get('monto', 0))
+            estado = p_data.get('estado', '').strip().lower()
             
-            if estado == 'Cancelado':
-                recaudado_propiedad += monto
-            elif estado == 'Pendiente':
-                pendiente_propiedad += monto
+            # 1. Extraemos los valores reales usando las variables del sistema de abonos
+            monto_pagado = safe_float(p_data.get('monto_pagado', 0.0))
+            saldo_pendiente = safe_float(p_data.get('saldo_pendiente', 0.0))
             
-            acumulado_propiedad += monto
+            # 2. Si es un registro viejo que no tiene los nuevos campos de abonos, los calculamos al vuelo
+            if 'monto_pagado' not in p_data:
+                monto_pagado = monto_base if estado == 'cancelado' else 0.0
+            if 'saldo_pendiente' not in p_data:
+                saldo_pendiente = monto_base if estado == 'pendiente' else 0.0
+
+            # 3. Distribución matemática exacta según el estado del recibo
+            if estado == 'cancelado':
+                recaudado_propiedad += monto_pagado
+            elif estado == 'pendiente':
+                pendiente_propiedad += monto_base
+            elif estado == 'parcial':
+                recaudado_propiedad += monto_pagado
+                # Si es parcial, sumamos su saldo pendiente real restante
+                pendiente_propiedad += saldo_pendiente
+            
+            # El total acumulado del mes es la suma de lo cobrado más lo que falta por cobrar
+            acumulado_propiedad += (monto_pagado + saldo_pendiente) if estado == 'parcial' else monto_base
 
         if acumulado_propiedad > 0: 
             resumen.append({
@@ -535,6 +552,7 @@ def resumen_propiedades():
                 'recaudado': recaudado_propiedad,
                 'pendiente': pendiente_propiedad
             })
+        # ... (El resto de la ruta se mantiene igual) ...
 
     return render_template('resumen_acumulado.html', 
                            resumen=resumen, 
@@ -660,7 +678,7 @@ def ejecutar_envio_automatico():
                         monto_total_inquilino += deuda_recibo
                         
                         tipo_deuda = "Pendiente" if estado_pago == 'pendiente' else "Saldo Parcial"
-                        linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *{tipo_deuda}*: C$ {deuda_recibo:,.2f} (Vence: {fecha_venc_str})"
+                        linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *{tipo_deuda}*: C$ {deuda_recibo:,.2f} (Venció: {fecha_venc_str})"
                         detalles_pagos_inquilino.append(linea_detalle)
             
             # Si el inquilino acumuló saldos netos pendientes, se despacha el mensaje ya mismo
