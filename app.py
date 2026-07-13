@@ -203,25 +203,38 @@ def save():
     # --- 5. GUARDADO Y PAGOS ---
     
     if emp_id:
-        # 1. Actualizar los datos del documento principal del inquilino
+        # 1. Actualizar los datos del documento principal del inquilino (fechas de contrato)
         db.collection('Empleados').document(emp_id).update(datos)
         
         try:
-            # 2. Buscar todos los pagos asociados a este inquilino
-            pagos_viejos = db.collection('Empleados').document(emp_id).collection('Pagos').stream()
+            # 2. Traer todos los pagos ordenados por su fecha de vencimiento previa
+            pagos_viejos = db.collection('Empleados').document(emp_id).collection('Pagos')\
+                             .order_by('fecha_vencimiento').stream()
             
+            # Inicializamos el secuenciador de fechas usando la nueva fecha de inicio del formulario
+            try:
+                fecha_secuencial = datetime.strptime(f_inicio_db, '%Y-%m-%d')
+            except:
+                fecha_secuencial = datetime.now()
+
             for p in pagos_viejos:
                 p_data = p.to_dict()
-                # 3. SOLO modificamos los meses que el usuario aún NO ha pagado
+                
+                # 3. Modificamos SOLO los meses que el usuario aún NO ha pagado o abonado
                 if p_data.get('estado', 'Pendiente') == 'Pendiente':
                     db.collection('Empleados').document(emp_id).collection('Pagos').document(p.id).update({
-                        'monto': mensualidad_base  # Le asignamos la nueva suma recalculada
+                        'monto': mensualidad_base,  # Actualiza el monto recalculado
+                        'fecha_vencimiento': fecha_secuencial.strftime('%Y-%m-%d'), # ✅ NUEVO: Actualiza la fecha ajustada
+                        'mes_anio': fecha_secuencial.strftime('%B %Y')              # ✅ NUEVO: Actualiza el nombre del mes
                     })
+                
+                # Avanzamos un mes en el calendario para el siguiente recibo (independientemente de su estado)
+                fecha_secuencial += relativedelta(months=1)
+                
         except Exception as err_pagos:
-            print(f"⚠️ No se pudieron actualizar las cuotas pendientes: {err_pagos}")
+            print(f"⚠️ No se pudieron actualizar las cuotas o sus vencimientos: {err_pagos}")
 
-        flash(f"Registro y cuotas pendientes de {num_contrato} actualizados", "success")
-
+        flash(f"Registro, montos y fechas de vencimiento pendientes para {num_contrato} actualizados", "success")
 
     else:
         nuevo_doc = db.collection('Empleados').add(datos)
