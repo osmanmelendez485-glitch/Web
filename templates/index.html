@@ -320,6 +320,21 @@
             </form>
         </div>
     </div>
+    
+
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-4 px-2">
+    <div class="text-muted small">
+        Mostrando <span id="reg-desde">0</span> al <span id="reg-hasta">0</span> de un total de <span id="reg-total">0</span> inquilinos.
+    </div>
+    <div class="btn-group shadow-sm">
+        <button type="button" class="btn btn-sm btn-outline-dark fw-semibold" id="btn-ant" onclick="paginaAnterior()">
+            <i class="bi bi-chevron-left"></i> Anterior
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-dark fw-semibold" id="btn-sig" onclick="paginaSiguiente()">
+            Siguiente <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -417,6 +432,61 @@
                 }
             });
         });
+</script>
+
+<script>
+    // Configuración de la paginación
+    const filasPorPagina = 10; // 💡 Cambia este número si quieres ver bloques de 10, 15, etc.
+    let paginaActual = 1;
+    
+    function inicializarPaginacion() {
+        // Capturamos todas las filas reales del cuerpo de la tabla
+        const tbody = document.querySelector("table tbody");
+        if (!tbody) return;
+        
+        const filas = Array.from(tbody.querySelectorAll("tr"));
+        const totalFilas = filas.length;
+        const totalPaginas = Math.ceil(totalFilas / filasPorPagina);
+        
+        // Evitar desbordamientos de página
+        if (paginaActual > totalPaginas) paginaActual = totalPaginas;
+        if (paginaActual < 1) paginaActual = 1;
+        
+        // Calcular índices de renderizado
+        const inicio = (paginaActual - 1) * filasPorPagina;
+        const fin = inicio + filasPorPagina;
+        
+        // Ocultar o mostrar filas según la página activa
+        filas.forEach((fila, indice) => {
+            if (indice >= inicio && indice < fin) {
+                fila.style.display = ""; // Muestra la fila
+            } else {
+                fila.style.display = "none"; // Oculta la fila
+            }
+        });
+        
+        // Actualizar los textos informativos en pantalla
+        document.getElementById("reg-total").textContent = totalFilas;
+        document.getElementById("reg-desde").textContent = totalFilas === 0 ? 0 : inicio + 1;
+        document.getElementById("reg-hasta").textContent = Math.min(fin, totalFilas);
+        
+        // Activar o desactivar botones según los límites
+        document.getElementById("btn-ant").disabled = (paginaActual === 1 || totalFilas === 0);
+        document.getElementById("btn-sig").disabled = (paginaActual === totalPaginas || totalFilas === 0);
+    }
+    
+    function paginaAnterior() {
+        paginaActual--;
+        inicializarPaginacion();
+    }
+    
+    function paginaSiguiente() {
+        paginaActual++;
+        inicializarPaginacion();
+    }
+    
+    // Ejecutar la paginación de forma automática al cargar el navegador
+    document.addEventListener("DOMContentLoaded", inicializarPaginacion);
 </script>
 
 </body>
