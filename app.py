@@ -361,18 +361,37 @@ def deshacer_deposito(e_id, p_id):
     pago_ref = db.collection('Empleados').document(e_id).collection('Pagos').document(p_id)
     pago = pago_ref.get().to_dict()
     
-    # Obtenemos el movimiento que hubo (positivo o negativo)
+    # 1. Recuperamos el movimiento y el monto actual
     movimiento = safe_float(pago.get('deposito_movimiento', 0))
     monto_actual = safe_float(pago.get('monto'))
+    monto_abonado = safe_float(pago.get('monto_pagado', 0.0)) # Lo que el inquilino ya pagó en efectivo/transferencia
 
-    # Revertimos el monto al estado original
+    # 2. Revertimos el monto al estado original limpio
+    nuevo_monto_total = monto_actual - movimiento
+
+    # 3. RECALCULAMOS LOS SALDOS AUTOMÁTICAMENTE
+    saldo_pendiente = 0.0
+    saldo_a_favor = 0.0
+    nuevo_estado = "Cancelado"
+    
+    if monto_abonado < nuevo_monto_total:
+        saldo_pendiente = nuevo_monto_total - monto_abonado
+        nuevo_estado = "Parcial" if monto_abonado > 0 else "Pendiente"
+    elif monto_abonado > nuevo_monto_total:
+        saldo_a_favor = monto_abonado - nuevo_monto_total
+        nuevo_estado = "Cancelado"
+
+    # 4. Actualizamos todo en Firestore en un solo paso
     pago_ref.update({
-        'monto': monto_actual - movimiento,
+        'monto': nuevo_monto_total,
         'deposito_movimiento': 0, # Limpiamos el rastro
-        'nota': ""
+        'estado': nuevo_estado,
+        'saldo_pendiente': saldo_pendiente,
+        'saldo_a_favor': saldo_a_favor,
+        'nota': "" # Limpiamos la nota del depósito
     })
     
-    flash("Movimiento de depósito revertido", "secondary")
+    flash("Movimiento de depósito revertido y saldos actualizados", "secondary")
     return redirect(url_for('ver_pagos', id=e_id))
 
 @app.route('/ver_pagos/<id>')
