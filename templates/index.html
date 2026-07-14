@@ -468,7 +468,7 @@
                 if (estadoA !== 'pendiente' && estadoB === 'pendiente') return 1;  // Sube 'b'
 
                 // --- Criterio 2: Si tienen el mismo estado, ordenar cronológicamente por Fecha ---
-                return fechaA - fechaB; // De la fecha más antigua a la más nueva
+                return fechaB - fechaA; // De la fecha más antigua a la más nueva
             });
             
             // 3. Volvemos a inyectar las filas en el DOM bajo el nuevo orden estricto
