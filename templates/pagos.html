@@ -91,6 +91,12 @@
                         <h5 class="mb-0 fw-bold">C$ {{ "{:,.2f}".format(total_adelantos) }}</h5>
                     </div>
                 </div>
+                <div class="col-md-3">
+                    <div class="p-2 bg-dark text-white rounded shadow-sm">
+                        <small>Depósito de Garantía</small>
+                        <h5 class="mb-0 fw-bold">C$ {{ "{:,.2f}".format(empleado.deposito) if empleado.deposito else '0.00' }}</h5>
+                    </div>
+                </div>
             </div>
             <hr>
         </div>
@@ -168,10 +174,10 @@
                                             <i class="bi bi-currency-dollar"></i>
                                         </button>
                                         <ul class="dropdown-menu">
-                                            <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/toma">Toma (Sumar)</a></li>
-                                            <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/retorna">Retorna (Restar)</a></li>
+                                            <li><a class="dropdown-item small fw-bold text-danger" href="/gestionar_deposito/{{ id }}/{{ p.id }}/toma"><i class="bi bi-box-arrow-down-left me-1"></i> Aplicar Toma de Depósito</a></li>
+                                            <li><a class="dropdown-item small fw-bold text-success" href="/gestionar_deposito/{{ id }}/{{ p.id }}/retorna"><i class="bi bi-box-arrow-up-right me-1"></i> Retornar Depósito</a></li>
                                             <li><hr class="dropdown-divider"></li>
-                                            <li><a class="dropdown-item small" href="/gestionar_deposito/{{ id }}/{{ p.id }}/ninguno">Ninguno (Revertir)</a></li>
+                                            <li><a class="dropdown-item small text-secondary" href="/deshacer_deposito/{{ id }}/{{ p.id }}"><i class="bi bi-arrow-counterclockwise me-1"></i> Deshacer / Eliminar Movimiento</a></li>
                                         </ul>
 
                                         <a href="/suspend/{{ id }}/{{ p.id }}" class="btn btn-sm btn-warning ms-1">Suspender</a>

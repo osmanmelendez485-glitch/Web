@@ -195,7 +195,7 @@ def save():
         'luz': safe_float(d.get('luz')),
         'canon': safe_float(d.get('canon')),
         'equipo': safe_float(d.get('equipo')),
-        'deposito': deposito_valor,
+        'deposito': safe_float(d.get('deposito')),
         'total_pagar': mensualidad_base,
         'fecha': fecha_dt.strftime('%Y-%m-%d')
     }
@@ -203,39 +203,57 @@ def save():
     # --- 5. GUARDADO Y PAGOS ---
     
     if emp_id:
-        # 1. Actualizar los datos del documento principal del inquilino (fechas de contrato)
+        # 1. Forzar que el diccionario de datos guarde el depósito como un número flotante
+        deposito_nuevo = safe_float(d.get('deposito', 0.0))
+        datos['deposito'] = deposito_nuevo
+        
+        # Actualizamos el documento principal del inquilino
         db.collection('Empleados').document(emp_id).update(datos)
         
         try:
-            # 2. Traer todos los pagos ordenados por su fecha de vencimiento previa
+            # 2. Traer todos los pagos ordenados cronológicamente
             pagos_viejos = db.collection('Empleados').document(emp_id).collection('Pagos')\
-                             .order_by('fecha_vencimiento').stream()
+                             .order_by('fecha_vencimiento').get()
             
-            # Inicializamos el secuenciador de fechas usando la nueva fecha de inicio del formulario
             try:
                 fecha_secuencial = datetime.strptime(f_inicio_db, '%Y-%m-%d')
             except:
                 fecha_secuencial = datetime.now()
 
-            for p in pagos_viejos:
+            for indice, p in enumerate(pagos_viejos):
                 p_data = p.to_dict()
+                pago_update = {}
                 
-                # 3. Modificamos SOLO los meses que el usuario aún NO ha pagado o abonado
+                # Modificamos los meses pendientes con el nuevo canon recalculado
                 if p_data.get('estado', 'Pendiente') == 'Pendiente':
-                    db.collection('Empleados').document(emp_id).collection('Pagos').document(p.id).update({
-                        'monto': mensualidad_base,  # Actualiza el monto recalculado
-                        'fecha_vencimiento': fecha_secuencial.strftime('%Y-%m-%d'), # ✅ NUEVO: Actualiza la fecha ajustada
-                        'mes_anio': fecha_secuencial.strftime('%B %Y')              # ✅ NUEVO: Actualiza el nombre del mes
+                    pago_update.update({
+                        'monto': mensualidad_base,
+                        'fecha_vencimiento': fecha_secuencial.strftime('%Y-%m-%d'),
+                        'mes_anio': fecha_secuencial.strftime('%B %Y')
                     })
+                    
+                    # 🟢 AQUÍ ESTÁ LA SOLUCIÓN PARA LA TABLA:
+                    # Si el pago actual tiene un movimiento de depósito activo (Toma o Retorno),
+                    # actualizamos su valor al nuevo monto que acabas de digitar en el modal.
+                    mov_actual = safe_float(p_data.get('deposito_movimiento', 0.0))
+                    if mov_actual != 0.0:
+                        # Si era una toma (negativo), conserva el signo; si era retorno (positivo), también.
+                        signo = -1.0 if mov_actual < 0 else 1.0
+                        pago_update['deposito_movimiento'] = deposito_nuevo * signo
                 
-                # Avanzamos un mes en el calendario para el siguiente recibo (independientemente de su estado)
+                # Guardamos la sincronización en el primer mes
+                if indice == 0:
+                    pago_update['nota'] = f"Depósito Inicial: C$ {deposito_nuevo:,.2f}"
+                
+                if pago_update:
+                    db.collection('Empleados').document(emp_id).collection('Pagos').document(p.id).update(pago_update)
+                
                 fecha_secuencial += relativedelta(months=1)
                 
         except Exception as err_pagos:
-            print(f"⚠️ No se pudieron actualizar las cuotas o sus vencimientos: {err_pagos}")
+            print(f"⚠️ Error actualizando cuotas: {err_pagos}")
 
-        flash(f"Registro, montos y fechas de vencimiento pendientes para {num_contrato} actualizados", "success")
-
+        flash(f"Registro y movimientos de depósito actualizados con éxito", "success")
     else:
         nuevo_doc = db.collection('Empleados').add(datos)
         new_id = nuevo_doc[1].id 
@@ -322,6 +340,7 @@ def vincular_drive_pdf():
     
     return redirect(url_for('ver_contrato', id=emp_id))
 
+
 @app.route('/gestionar_deposito/<e_id>/<p_id>/<accion>')
 def gestionar_deposito(e_id, p_id, accion):
     if 'user' not in session: return redirect(url_for('login_page'))
@@ -332,27 +351,51 @@ def gestionar_deposito(e_id, p_id, accion):
     contrato = emp_ref.get().to_dict()
     pago = pago_ref.get().to_dict()
     
+    # 1. Recuperar el depósito real establecido en el contrato
     deposito = safe_float(contrato.get('deposito', 0))
-    # Calculamos el monto base quitando cualquier movimiento previo
-    mov_previo = safe_float(pago.get('deposito_movimiento', 0))
-    monto_base = safe_float(pago.get('monto')) - mov_previo
+    
+    # 2. Reconstruir la mensualidad base real recalculada (Canon + Servicios contratados)
+    mensualidad_base = (safe_float(contrato.get('internet')) + safe_float(contrato.get('agua')) + 
+                        safe_float(contrato.get('luz')) + safe_float(contrato.get('canon')) + 
+                        safe_float(contrato.get('equipo')))
 
+    # 3. Aplicar la lógica según la acción seleccionada sin arrastrar basura previa
     if accion == 'toma':
         nuevo_mov = deposito
-        nota = "Depósito Tomado"
+        nuevo_monto_total = mensualidad_base + deposito  # Al inicio se SUMA el depósito
+        nota = f"Cobro de Depósito Inicial: C$ {deposito:,.2f}"
     elif accion == 'retorna':
         nuevo_mov = -deposito
-        nota = "Retorno de Depósito 2026"
+        # Si el depósito cubre el último mes, el monto a cobrar en caja baja (se le resta el crédito del depósito)
+        nuevo_monto_total = mensualidad_base - deposito  
+        nota = f"Retorno de Depósito Aplicado a Cuota: C$ {deposito:,.2f}"
     else: # ninguno
         nuevo_mov = 0
+        nuevo_monto_total = mensualidad_base
         nota = ""
 
+    # 4. Calcular el saldo pendiente real restando lo que ya se haya abonado físicamente
+    monto_pagado_ya = safe_float(pago.get('monto_pagado', 0.0))
+    saldo_pendiente = nuevo_monto_total - monto_pagado_ya
+
+    # Determinamos el estado lógico de la fila tras el movimiento
+    if saldo_pendiente <= 0:
+        nuevo_estado = "Cancelado" if monto_pagado_ya > 0 or accion == 'retorna' else "Pendiente"
+    else:
+        nuevo_estado = "Parcial" if monto_pagado_ya > 0 else "Pendiente"
+
+    # 5. Guardar la actualización limpia en Firestore
     pago_ref.update({
-        'monto': monto_base + nuevo_mov,
+        'monto': nuevo_monto_total,
         'deposito_movimiento': nuevo_mov,
+        'saldo_pendiente': max(0.0, saldo_pendiente),
+        'estado': nuevo_estado,
         'nota': nota
     })
+    
+    flash("Movimiento de depósito sincronizado con éxito", "success")
     return redirect(url_for('ver_pagos', id=e_id))
+
 
 @app.route('/deshacer_deposito/<e_id>/<p_id>')
 def deshacer_deposito(e_id, p_id):
@@ -361,37 +404,34 @@ def deshacer_deposito(e_id, p_id):
     pago_ref = db.collection('Empleados').document(e_id).collection('Pagos').document(p_id)
     pago = pago_ref.get().to_dict()
     
-    # 1. Recuperamos el movimiento y el monto actual
+    # 1. Recuperamos los valores actuales
     movimiento = safe_float(pago.get('deposito_movimiento', 0))
     monto_actual = safe_float(pago.get('monto'))
-    monto_abonado = safe_float(pago.get('monto_pagado', 0.0)) # Lo que el inquilino ya pagó en efectivo/transferencia
 
-    # 2. Revertimos el monto al estado original limpio
+    # 2. Revertimos el monto total del mes a su estado original (ej: vuelve a C$ 3,000)
     nuevo_monto_total = monto_actual - movimiento
 
-    # 3. RECALCULAMOS LOS SALDOS AUTOMÁTICAMENTE
-    saldo_pendiente = 0.0
-    saldo_a_favor = 0.0
-    nuevo_estado = "Cancelado"
-    
-    if monto_abonado < nuevo_monto_total:
-        saldo_pendiente = nuevo_monto_total - monto_abonado
-        nuevo_estado = "Parcial" if monto_abonado > 0 else "Pendiente"
-    elif monto_abonado > nuevo_monto_total:
-        saldo_a_favor = monto_abonado - nuevo_monto_total
-        nuevo_estado = "Cancelado"
+    # 3. CRUCIAL: Al deshacer la toma, el 'monto_pagado' debe volver a 0 
+    # porque ya no cuenta con el respaldo del depósito tomado.
+    monto_abonado_limpio = 0.0  
 
-    # 4. Actualizamos todo en Firestore en un solo paso
+    # 4. Recalculamos saldos y estados basados en el reinicio total
+    saldo_pendiente = nuevo_monto_total
+    saldo_a_favor = 0.0
+    nuevo_estado = "Pendiente" # Al no haber abono real, vuelve a estar pendiente
+
+    # 5. Guardamos la corrección absoluta en Firestore
     pago_ref.update({
         'monto': nuevo_monto_total,
-        'deposito_movimiento': 0, # Limpiamos el rastro
+        'monto_pagado': monto_abonado_limpio, # <--- Esto limpia el abono fantasma
+        'deposito_movimiento': 0,
         'estado': nuevo_estado,
         'saldo_pendiente': saldo_pendiente,
         'saldo_a_favor': saldo_a_favor,
-        'nota': "" # Limpiamos la nota del depósito
+        'nota': "" 
     })
     
-    flash("Movimiento de depósito revertido y saldos actualizados", "secondary")
+    flash("Movimiento de depósito deshecho. La cuota ha vuelto a su canon original.", "secondary")
     return redirect(url_for('ver_pagos', id=e_id))
 
 @app.route('/ver_pagos/<id>')
