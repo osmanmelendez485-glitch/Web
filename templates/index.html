@@ -125,6 +125,15 @@
                                 <div class="form-text" style="font-size: 0.65rem;">PDF o Word únicamente.</div>
                             </div>
 
+                            <div class="col-md-2 d-flex align-items-center mt-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="enviar_copia_inquilino" id="reg-copia-inquilino" value="true" checked>
+                                    <label class="form-check-label small fw-bold text-success" for="reg-copia-inquilino">
+                                        <i class="bi bi-whatsapp"></i> Copiar al Inquilino
+                                    </label>
+                                </div>
+                            </div>
+
                             <div class="col-md-2">
                                 <label class="small fw-bold text-primary">TOTAL INICIAL</label>
                                 <input type="text" id="reg-total-display" class="form-control fw-bold bg-light text-center" readonly value="C$ 0.00">
@@ -174,25 +183,31 @@
                                 </a>
                             </td>
 
-                            <td class="text-center"> <div class="d-flex justify-content-center">
-                                <div class="btn-group">
-                                    {# Usamos .get('telefono') para que si no existe, no de error #}
-                                    {% if emp.get('telefono') %}
-                                        {% set total_num = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
-                                        {% set mensaje = "Hola " ~ emp.nombre ~ ", te saluda Osman. El monto pendiente es de C$ " ~ "{:,.2f}".format(total_num) %}
-                                        
-                                        <a href="https://wa.me/{{ emp.telefono }}?text={{ mensaje|urlencode }}" 
-                                        target="_blank" 
-                                        class="btn btn-sm btn-success">
-                                            <i class="bi bi-whatsapp"></i>
-                                        </a>
-                                    {% else %}
-                                        <button class="btn btn-sm btn-outline-secondary" disabled title="Sin teléfono">
-                                            <i class="bi bi-whatsapp"></i>
-                                        </button>
-                                    {% endif %}
-                                    
+                            <td class="text-center"> 
+                                <div class="d-flex flex-column align-items-center justify-content-center">
+                                    <div class="btn-group">
+                                        {# Usamos .get('telefono') para que si no existe, no de error #}
+                                        {% if emp.get('telefono') %}
+                                            {% set total_num = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
+                                            {% set mensaje = "Hola " ~ emp.nombre ~ ", te saluda Osman. El monto pendiente es de C$ " ~ "{:,.2f}".format(total_num) %}
+                                            
+                                            <a href="https://wa.me/{{ emp.telefono }}?text={{ mensaje|urlencode }}" 
+                                            target="_blank" 
+                                            class="btn btn-sm btn-success">
+                                                <i class="bi bi-whatsapp"></i>
+                                            </a>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-outline-secondary" disabled title="Sin teléfono">
+                                                <i class="bi bi-whatsapp"></i>
+                                            </button>
+                                        {% endif %}
                                     </div>
+                                    {% if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' %}
+                                        <span class="badge bg-light text-success border border-success mt-1" style="font-size: 0.65rem;">Copia Activa</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-muted border mt-1" style="font-size: 0.65rem;">Solo Admin</span>
+                                    {% endif %}
+                                </div>
                             </td>
                             
                             <td>
@@ -216,7 +231,8 @@
                                             data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
                                             data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
                                             data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
-                                            data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
+                                            data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}"
+                                            data-copia="{{ 'true' if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' else 'false' }}">
                                             <i class="bi bi-unlock"></i> Desbloquear
                                         </button>
                                     </div>
@@ -229,7 +245,8 @@
                                             data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
                                             data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
                                             data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
-                                            data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}">
+                                            data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}"
+                                            data-copia="{{ 'true' if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' else 'false' }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <a href="/ver_pagos/{{ emp.id }}" class="btn btn-sm btn-info text-white">
@@ -271,9 +288,6 @@
                     <div class="col-md-4"><label class="small fw-bold">Fin Contrato</label><input type="date" name="fecha_fin" id="edit-fecha_fin" class="form-control"></div>
                     <div class="col-md-4"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" id="edit-num_contrato" class="form-control"></div>
                     
-                    
-                    
-
                     <div class="col-md-4">
                         <label class="small fw-bold">Direccion</label>
                         <select name="direccion" id="edit-direccion" class="form-select">
@@ -293,8 +307,17 @@
                             <option value="Cancelado">Cancelado</option>    
                             <option value="Pendiente">Pendiente</option>
                         </select>
-                        {# aca se aagregan los campos para editar los datos del contrato #}
                     </div>
+
+                    <div class="col-md-4 d-flex align-items-center mt-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="enviar_copia_inquilino" id="edit-copia-inquilino" value="true">
+                            <label class="form-check-label small fw-bold text-success" for="edit-copia-inquilino">
+                                <i class="bi bi-whatsapp"></i> Copiar al Inquilino
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="col-md-3"><label class="small fw-bold">Internet</label><input type="number" step="1" name="internet" id="edit-internet" class="form-control"></div>
                     <div class="col-md-3"><label class="small fw-bold">Agua</label><input type="number" step="1" name="agua" id="edit-agua" class="form-control"></div>
                     <div class="col-md-3"><label class="small fw-bold">Luz</label><input type="number" step="1" name="luz" id="edit-luz" class="form-control"></div>
@@ -365,6 +388,10 @@
             document.getElementById('edit-cedula').value = button.getAttribute('data-cedula');
             document.getElementById('edit-telefono').value = button.getAttribute('data-telefono');
             document.getElementById('edit-num_contrato').value = button.getAttribute('data-num_contrato');
+            
+            // Cargar el estado del switch "Copiar al Inquilino" en el modal
+            const copiaActiva = button.getAttribute('data-copia') === 'true';
+            document.getElementById('edit-copia-inquilino').checked = copiaActiva;
 
             setTimeout(calcularTotalEdit, 100);
         });
@@ -448,7 +475,7 @@
             // 1. Extraemos todas las filas físicas de la tabla a un array en memoria
             const filas = Array.from(tbody.querySelectorAll("tr"));
             
-            // 2. 🧠 ALGORITMO DE ORDENAMIENTO DOBLE: Primero 'Pendiente', luego por Fecha de Pago (Cronológico)
+            // 2. 🧠 ALGORITMO DE ORDENAMIENTO DOBLE: Primero 'Pendiente', luego por Fecha de Pago (Invertido)
             filas.sort((a, b) => {
                 // Evaluamos si el texto de la fila contiene el estado "pendiente"
                 const estadoA = a.innerText.toLowerCase().includes('pendiente') ? 'pendiente' : 'otro';
@@ -467,8 +494,8 @@
                 if (estadoA === 'pendiente' && estadoB !== 'pendiente') return -1; // Sube 'a'
                 if (estadoA !== 'pendiente' && estadoB === 'pendiente') return 1;  // Sube 'b'
 
-                // --- Criterio 2: Si tienen el mismo estado, ordenar cronológicamente por Fecha ---
-                return fechaB - fechaA; // De la fecha más antigua a la más nueva
+                // --- Criterio 2: Si tienen el mismo estado, ordenar cronológicamente por Fecha Invertida ---
+                return fechaB - fechaA; // De la fecha más nueva a la más antigua
             });
             
             // 3. Volvemos a inyectar las filas en el DOM bajo el nuevo orden estricto
@@ -482,11 +509,11 @@
             if (paginaActual > totalPaginas) paginaActual = totalPaginas;
             if (paginaActual < 1) paginaActual = 1;
             
-            // Definimos los índices matemáticos de visibilidad (estricto 10)
+            // Definimos los índices matemáticos de visibilidad (estricto 12)
             const inicio = (paginaActual - 1) * filasPorPagina;
             const fin = inicio + filasPorPagina;
             
-            // 5. Ocultar todas las filas y activar EXCLUSIVAMENTE las 10 del bloque correspondiente
+            // 5. Ocultar todas las filas y activar EXCLUSIVAMENTE las del bloque correspondiente
             filas.forEach((fila, indice) => {
                 if (indice >= inicio && indice < fin) {
                     fila.style.display = ""; // Se muestra de forma limpia
@@ -530,5 +557,4 @@
     </script>
 
 </body>
-
 </html>

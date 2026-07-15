@@ -179,7 +179,7 @@ def save():
     # Si vienen vacías, asignamos hoy en formato texto para la DB
     f_inicio_db = f_inicio_raw if f_inicio_raw else datetime.now().strftime('%Y-%m-%d')
     f_fin_db = f_fin_raw if f_fin_raw else datetime.now().strftime('%Y-%m-%d')
-
+    enviar_copia = request.form.get('enviar_copia_inquilino') == 'true'
     datos = {
         'nombre': d.get('nombre'),
         'apellido': d.get('apellido'),
@@ -197,7 +197,9 @@ def save():
         'equipo': safe_float(d.get('equipo')),
         'deposito': safe_float(d.get('deposito')),
         'total_pagar': mensualidad_base,
-        'fecha': fecha_dt.strftime('%Y-%m-%d')
+        'fecha': fecha_dt.strftime('%Y-%m-%d'),
+        'meses_contrato': limite_meses,
+        'enviar_copia_inquilino': enviar_copia,
     }
 
     # --- 5. GUARDADO Y PAGOS ---
