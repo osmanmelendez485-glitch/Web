@@ -9,14 +9,43 @@
     <style>
         body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
         .table-container { background: white; padding: 25px; border-radius: 12px; border: 1px solid #e0e0e0; }
-        .th-pregunta { min-width: 120px; font-size: 0.75rem; vertical-align: top; }
+        .th-pregunta { min-width: 130px; font-size: 0.75rem; vertical-align: top; }
+
+        /* 🖨️ REGLAS EXCLUSIVAS PARA IMPRESIÓN */
+        @media print {
+            .navbar, .btn-print-nav, .btn, .th-evidencias, .td-evidencias {
+                display: none !important;
+            }
+            body {
+                background-color: #fff !important;
+                color: #000 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .table-container {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+            }
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+            .badge {
+                border: 1px solid #000 !important;
+                background-color: transparent !important;
+                color: #000 !important;
+                text-shadow: none !important;
+            }
+            @page {
+                size: landscape;
+                margin: 1cm;
+            }
+        }
     </style>
 </head>
 <body>
 
-    {# ==================================================================== #}
-    {# ⚙️ COPIA AQUÍ MISMO LAS PREGUNTAS DEL ARCHIVO ANTERIOR PARA IGUALAR  #}
-    {# ==================================================================== #}
     {% set titulos_preguntas = [
         "1. Pisos",
         "2. Techos",
@@ -29,29 +58,36 @@
         "9. Relación Vecinal",
         "10. Recomendación"
     ] %}
-    {# ==================================================================== #}
 
     <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
         <div class="container-fluid justify-content-start">
-            <a href="/" class="btn btn-outline-light btn-sm me-3"><i class="bi bi-arrow-left"></i> Volver a Contratos</a>
+            <a href="/" class="btn btn-outline-light btn-sm me-3 btn-print-nav"><i class="bi bi-arrow-left"></i> Volver a Contratos</a>
             <span class="navbar-brand mb-0 h1">Módulo Analítico — Resumen de Encuestas</span>
         </div>
     </nav>
 
     <div class="container-fluid px-4">
         <div class="table-container shadow-sm">
-            <h5 class="fw-bold mb-4 text-uppercase text-muted"><i class="bi bi-file-bar-graph"></i> Respuestas consolidadas del periodo</h5>
+            
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="fw-bold mb-0 text-uppercase text-muted"><i class="bi bi-file-bar-graph"></i> Respuestas consolidadas del periodo</h5>
+                <!-- 🖨️ Botón de Impresión Directa -->
+                <button onclick="window.print();" class="btn btn-primary btn-sm fw-bold">
+                    <i class="bi bi-printer"></i> Imprimir Reporte
+                </button>
+            </div>
+
             <div class="table-responsive">
                 <table class="table table-bordered table-striped align-middle small">
                     <thead class="table-dark text-center">
                         <tr>
                             <th class="align-middle">Inquilino</th>
                             <th class="align-middle">Propiedad</th>
-                            <th class="align-middle" style="min-width: 100px;">Fecha Envío</th> <!-- 📅 Nueva Columna -->
+                            <th class="align-middle" style="min-width: 100px;">Fecha Envío</th>
                             {% for titulo in titulos_preguntas %}
                                 <th class="th-pregunta">{{ titulo }}</th>
                             {% endfor %}
-                            <th class="align-middle">Evidencias</th>
+                            <th class="align-middle th-evidencias">Evidencias</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -63,24 +99,25 @@
                             <td>
                                 <span class="text-primary font-monospace small" style="font-size:0.75rem;">{{ enc.propiedad }}</span>
                             </td>
-                            <!-- 📅 Renderizado de la fecha de respuesta -->
                             <td class="text-center font-monospace text-muted text-nowrap">
                                 {{ enc.fecha_respuesta or '—' }}
                             </td>
                             
-                            <!-- Mapeo automatizado de las respuestas p1 a p10 -->
-                            <td><span class="badge bg-secondary d-block">{{ enc.p1 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p2 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p3 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p4 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p5 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p6 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p7 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p8 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p9 }}</span></td>
-                            <td><span class="badge bg-secondary d-block">{{ enc.p10 }}</span></td>
+                            <!-- Bucle automatizado para renderizar respuestas (p1-p10) y comentarios (comentario_p1-p10) -->
+                            {% for i in range(1, 11) %}
+                                {% set respuesta = enc['p' ~ i] %}
+                                {% set comentario = enc['comentario_p' ~ i] %}
+                                <td>
+                                    <span class="badge bg-secondary d-block mb-1">{{ respuesta or '—' }}</span>
+                                    {% if comentario %}
+                                        <small class="d-block text-muted fst-italic border-top pt-1" style="font-size: 0.7rem; line-height: 1.1;" title="{{ comentario }}">
+                                            {{ comentario }}
+                                        </small>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
                             
-                            <td class="text-center">
+                            <td class="text-center td-evidencias">
                                 <div class="d-flex gap-1 justify-content-center flex-wrap">
                                     {% if enc.foto_p1 %}<a href="{{ enc.foto_p1 }}" target="_blank" class="btn btn-sm btn-outline-info p-1 py-0" title="Foto P1"><i class="bi bi-image"></i> 1</a>{% endif %}
                                     {% if enc.foto_p2 %}<a href="{{ enc.foto_p2 }}" target="_blank" class="btn btn-sm btn-outline-info p-1 py-0" title="Foto P2"><i class="bi bi-image"></i> 2</a>{% endif %}
@@ -94,8 +131,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <!-- Ajustado a 13 columnas debido a la nueva columna de fecha -->
-                            <td colspan="13" class="text-center text-muted py-4">No se han registrado respuestas de encuestas aún.</td>
+                            <td colspan="14" class="text-center text-muted py-4">No se han registrado respuestas de encuestas aún.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

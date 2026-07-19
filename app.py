@@ -846,30 +846,26 @@ def abrir_encuesta(id):
     emp['id'] = doc.id
     return render_template('encuesta.html', emp=emp)
 
-
 @app.route('/guardar_encuesta', methods=['POST'])
 def guardar_encuesta():
     if not db: 
         return "Error: No hay conexión con la base de datos."
 
+    # 1. Inicializar diccionario con los datos base de control
     datos_encuesta = {
         "inquilino_id": request.form.get("inquilino_id"),
         "nombre_inquilino": request.form.get("nombre_inquilino"),
         "propiedad": request.form.get("propiedad"),
-        "fecha_respuesta": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        "p1": request.form.get("p1"),
-        "p2": request.form.get("p2"),
-        "p3": request.form.get("p3"),
-        "p4": request.form.get("p4"),
-        "p5": request.form.get("p5"),
-        "p6": request.form.get("p6"),
-        "p7": request.form.get("p7"),
-        "p8": request.form.get("p8"),
-        "p9": request.form.get("p9"),
-        "p10": request.form.get("p10")
+        "fecha_respuesta": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     
-    # Procesamiento y guardado seguro de archivos multimedia en la carpeta local
+    # 2. Capturar respuestas (p1-p10) y comentarios (comentario_p1 a comentario_p10) dinámicamente
+    for i in range(1, 11):
+        datos_encuesta[f"p{i}"] = request.form.get(f"p{i}")
+        # Capturamos el texto quitándole espacios extra en blanco. Si está vacío, guarda un string vacío "" o puedes cambiarlo por None.
+        datos_encuesta[f"comentario_p{i}"] = request.form.get(f"comentario_p{i}", "").strip()
+    
+    # 3. Procesamiento y guardado seguro de archivos multimedia en la carpeta local
     campos_foto = ['foto_p1', 'foto_p2', 'foto_p4', 'foto_p6']
     for campo in campos_foto:
         if campo in request.files:
@@ -888,7 +884,7 @@ def guardar_encuesta():
         else:
             datos_encuesta[campo] = None
 
-    # Persistencia en la subcolección global
+    # 4. Persistencia en la subcolección global de Firestore
     db.collection('encuestas_respuestas').add(datos_encuesta)
     
     return "<h3>Encuesta Enviada Exitosamente. Muchas gracias por tu apoyo. Puedes cerrar esta ventana.</h3>"

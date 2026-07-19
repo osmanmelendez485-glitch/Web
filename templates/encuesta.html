@@ -33,7 +33,7 @@
             "lleva_foto": false
         },
         {
-            "texto": "¿Cómo se encuentra el estado del sistema eléctrico?",
+            "texto": "¿Cómo se encuentra el estado del sistema eléctrico?,
             "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": true
         },
@@ -84,11 +84,14 @@
                     <input type="hidden" name="propiedad" value="{{ emp.direccion }}">
 
                     <!-- Bucle Automático que genera las 10 preguntas -->
+                    
+                    <!-- Bucle Automático que genera las 10 preguntas -->
                     {% for preg in preguntas %}
                         {% set num_p = loop.index %}
                         <div class="mb-4 p-3 bg-light rounded border-start border-primary border-3">
                             <label class="fw-bold mb-2">{{ num_p }}. {{ preg.texto }}</label>
                             
+                            <!-- Opciones Radio -->
                             <div class="d-flex flex-wrap gap-3 my-2">
                                 {% for opcion in preg.opciones %}
                                     <div class="form-check">
@@ -98,6 +101,13 @@
                                 {% endfor %}
                             </div>
 
+                            <!-- 💬 NUEVO: Campo de Comentarios por pregunta -->
+                            <div class="mt-2 mb-2">
+                                <label class="small text-muted fw-bold mb-1"><i class="bi bi-chat-left-text"></i> Comentarios / Observaciones (Opcional):</label>
+                                <textarea name="comentario_p{{ num_p }}" class="form-control form-control-sm" rows="1" placeholder="Escribe aquí si hay algún detalle..."></textarea>
+                            </div>
+
+                            <!-- Evidencia Fotográfica -->
                             {% if preg.lleva_foto %}
                                 <div class="mt-2">
                                     <label class="small text-muted fw-bold mb-1"><i class="bi bi-camera"></i> Adjuntar evidencia fotográfica (Opcional):</label>
