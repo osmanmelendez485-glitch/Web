@@ -45,7 +45,8 @@
                 <table class="table table-bordered table-striped align-middle small">
                     <thead class="table-dark text-center">
                         <tr>
-                            <th class="align-middle">Inquilino / Propiedad</th>
+                            <th class="align-middle">Inquilino</th>
+                            <th class="align-middle">Propiedad</th>
                             <th class="align-middle" style="min-width: 100px;">Fecha Envío</th> <!-- 📅 Nueva Columna -->
                             {% for titulo in titulos_preguntas %}
                                 <th class="th-pregunta">{{ titulo }}</th>
@@ -58,6 +59,8 @@
                         <tr>
                             <td>
                                 <span class="d-block fw-bold text-dark">{{ enc.nombre_inquilino }}</span>
+                            </td>
+                            <td>
                                 <span class="text-primary font-monospace small" style="font-size:0.75rem;">{{ enc.propiedad }}</span>
                             </td>
                             <!-- 📅 Renderizado de la fecha de respuesta -->
