@@ -1,6 +1,7 @@
 import os
 import re
 import json
+from zoneinfo import ZoneInfo
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -856,7 +857,7 @@ def guardar_encuesta():
         "inquilino_id": request.form.get("inquilino_id"),
         "nombre_inquilino": request.form.get("nombre_inquilino"),
         "propiedad": request.form.get("propiedad"),
-        "fecha_respuesta": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        "fecha_respuesta": datetime.now(ZoneInfo("America/Managua")).strftime('%Y-%m-%d %H:%M:%S'),
     }
     
     # 2. Capturar respuestas (p1-p10) y comentarios (comentario_p1 a comentario_p10) dinámicamente
@@ -975,6 +976,25 @@ def ejecutar_envio_encuestas_automatico():
     except Exception as e:
         flash(f"Error general en el proceso de encuestas: {str(e)}", "danger")
         return redirect(url_for('dashboard'))
+
+@app.route('/imprimir_encuesta/<encuesta_id>')
+def imprimir_encuesta_individual(encuesta_id):
+    if not db:
+        return "Error: No hay conexión con la base de datos."
+    
+    # Buscar el documento específico de la encuesta en Firestore
+    doc_ref = db.collection('encuestas_respuestas').document(encuesta_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        return "<h3>Error: La encuesta solicitada no existe.</h3>", 404
+        
+    encuesta_data = doc.to_dict()
+    
+    # Pasamos los datos del documento a la plantilla de impresión individual
+    return render_template('imprimir_encuesta.html', enc=encuesta_data)
+
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

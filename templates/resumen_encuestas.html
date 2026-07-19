@@ -72,9 +72,7 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h5 class="fw-bold mb-0 text-uppercase text-muted"><i class="bi bi-file-bar-graph"></i> Respuestas consolidadas del periodo</h5>
                 <!-- 🖨️ Botón de Impresión Directa -->
-                <button onclick="window.print();" class="btn btn-primary btn-sm fw-bold">
-                    <i class="bi bi-printer"></i> Imprimir Reporte
-                </button>
+                
             </div>
 
             <div class="table-responsive">
@@ -95,9 +93,13 @@
                         <tr>
                             <td>
                                 <span class="d-block fw-bold text-dark">{{ enc.nombre_inquilino }}</span>
+                                <a href="/imprimir_encuesta/{{ enc.id if enc.id else enc._id }}" target="_blank" class="btn btn-sm btn-outline-dark p-1 py-0 ms-2" title="Imprimir encuesta individual">
+                                    <i class="bi bi-printer-fill"></i>
+                                </a>
                             </td>
                             <td>
                                 <span class="text-primary font-monospace small" style="font-size:0.75rem;">{{ enc.propiedad }}</span>
+                             
                             </td>
                             <td class="text-center font-monospace text-muted text-nowrap">
                                 {{ enc.fecha_respuesta or '—' }}
