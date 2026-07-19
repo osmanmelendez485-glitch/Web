@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resumen de Encuestas de Control</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
+        .table-container { background: white; padding: 25px; border-radius: 12px; border: 1px solid #e0e0e0; }
+        .th-pregunta { min-width: 120px; font-size: 0.75rem; vertical-align: top; }
+    </style>
+</head>
+<body>
+
+    {# ==================================================================== #}
+    {# ⚙️ COPIA AQUÍ MISMO LAS PREGUNTAS DEL ARCHIVO ANTERIOR PARA IGUALAR  #}
+    {# ==================================================================== #}
+    {% set titulos_preguntas = [
+        "1. Infraestructura",
+        "2. Serv. Básicos",
+        "3. Internet",
+        "4. Pintura/Paredes",
+        "5. Áreas Comunes",
+        "6. Seguridad",
+        "7. Equipamiento",
+        "8. Facturación",
+        "9. Mantenimiento",
+        "10. Convivencia"
+    ] %}
+    {# ==================================================================== #}
+
+    <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
+        <div class="container-fluid justify-content-start">
+            <a href="/" class="btn btn-outline-light btn-sm me-3"><i class="bi bi-arrow-left"></i> Volver a Contratos</a>
+            <span class="navbar-brand mb-0 h1">Módulo Analítico — Resumen de Encuestas</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        <div class="table-container shadow-sm">
+            <h5 class="fw-bold mb-4 text-uppercase text-muted"><i class="bi bi-file-bar-graph"></i> Respuestas consolidadas del periodo</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped align-middle small">
+                    <thead class="table-dark text-center">
+                        <tr>
+                            <th class="align-middle">Inquilino / Propiedad</th>
+                            {% for titulo in titulos_preguntas %}
+                                <th class="th-pregunta">{{ titulo }}</th>
+                            {% endfor %}
+                            <th class="align-middle">Evidencias</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for enc in encuestas %}
+                        <tr>
+                            <td>
+                                <span class="d-block fw-bold text-dark">{{ enc.nombre_inquilino }}</span>
+                                <span class="text-primary font-monospace small" style="font-size:0.75rem;">{{ enc.propiedad }}</span>
+                            </td>
+                            <!-- Mapeo automatizado de las respuestas p1 a p10 -->
+                            <td><span class="badge bg-secondary d-block">{{ enc.p1 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p2 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p3 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p4 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p5 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p6 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p7 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p8 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p9 }}</span></td>
+                            <td><span class="badge bg-secondary d-block">{{ enc.p10 }}</span></td>
+                            
+                            <td class="text-center">
+                                <div class="d-flex gap-1 justify-content-center flex-wrap">
+                                    {% if enc.foto_p1 %}<a href="{{ enc.foto_p1 }}" target="_blank" class="btn btn-sm btn-outline-info p-1 py-0" title="Foto P1"><i class="bi bi-image"></i> 1</a>{% endif %}
+                                    {% if enc.foto_p2 %}<a href="{{ enc.foto_p2 }}" target="_blank" class="btn btn-sm btn-outline-info p-1 py-0" title="Foto P2"><i class="bi bi-image"></i> 2</a>{% endif %}
+                                    {% if enc.foto_p4 %}<a href="{{ enc.foto_p4 }}" target="_blank" class="btn btn-sm btn-outline-info p-1 py-0" title="Foto P4"><i class="bi bi-image"></i> 4</a>{% endif %}
+                                    {% if enc.foto_p6 %}<a href="{{ enc.foto_p6 }}" target="_blank" class="btn btn-sm btn-outline-info p-1 py-0" title="Foto P6"><i class="bi bi-image"></i> 6</a>{% endif %}
+                                    {% if not enc.foto_p1 and not enc.foto_p2 and not enc.foto_p4 and not enc.foto_p6 %}
+                                        <span class="text-muted small">—</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="12" class="text-center text-muted py-4">No se han registrado respuestas de encuestas aún.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

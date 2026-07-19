@@ -17,13 +17,12 @@
         .info-sub { display: block; font-size: 0.82rem; color: #6c757d; }
         .badge-cancelado { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; font-weight: 600; }
         .badge-pendiente { background-color: #ffeded; color: #dc3545; border: 1px solid #dc3545; font-weight: 600; }
-        /* Clase para igualar el ancho de los botones */
         .btn-fijo {
-            width: 150px; /* Ajusta este valor según el tamaño que desees */
+            width: 150px; 
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px; /* Espacio entre icono y texto */
+            gap: 8px; 
         }
         .d-none-filtro {
             display: none !important;
@@ -43,6 +42,8 @@
                     <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-file-bar-graph"></i> Resumen</a>
                     <a href="/boveda_contratos" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-shield-lock"></i> Bóveda PDF</a>
                     <a href="/ejecutar_envio_automatico_secreto_123" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+                    <a href="/ejecutar_envio_encuestas_secreto_123" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-file-earmark-text"></i> Encuestas</a>
+                    <a href="/resumen_encuestas" class="btn btn-outline-info btn-sm btn-fijo me-2 ms-2"><i class="bi bi-file-bar-graph"></i> Ver Encuestas</a>
                 </div>
             </div>
         </nav>
@@ -72,26 +73,15 @@
                             <div class="col-md-2"><label class="small fw-bold">Telefono</label><input type="text" name="telefono" class="form-control form-control-sm" required></div>
                             <div class="col-md-2"><label class="small fw-bold">No. Contrato</label><input type="text" name="num_contrato" class="form-control form-control-sm"></div>
                             <div class="row g-2">
-                            <div class="col-md-2">
-                                <label class="small fw-bold">Inicio</label>
-                                <input type="date" 
-                                    id="fecha_inicio" 
-                                    name="fecha_inicio" 
-                                    class="form-control form-control-sm" 
-                                    required 
-                                    value="{{ now.strftime('%Y-%m-%d') }}">
+                                <div class="col-md-2">
+                                    <label class="small fw-bold">Inicio</label>
+                                    <input type="date" id="fecha_inicio" name="fecha_inicio" class="form-control form-control-sm" required value="{{ now.strftime('%Y-%m-%d') }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="small fw-bold">Fin</label>
+                                    <input type="date" id="fecha_fin" name="fecha_fin" class="form-control form-control-sm" required value="{{ (now.year + 1) }}-{{ now.strftime('%m-%d') }}">
+                                </div>
                             </div>
-
-                            <div class="col-md-2">
-                                <label class="small fw-bold">Fin</label>
-                                <input type="date" 
-                                    id="fecha_fin" 
-                                    name="fecha_fin" 
-                                    class="form-control form-control-sm" 
-                                    required 
-                                    value="{{ (now.year + 1) }}-{{ now.strftime('%m-%d') }}">
-                            </div>
-                        </div>
                             
                             <div class="col-md-2">
                                 <label class="small fw-bold">Foto Propiedad</label>
@@ -125,11 +115,22 @@
                                 <div class="form-text" style="font-size: 0.65rem;">PDF o Word únicamente.</div>
                             </div>
 
+                            <!-- Switch para Cobros en Registro -->
                             <div class="col-md-2 d-flex align-items-center mt-4">
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" name="enviar_copia_inquilino" id="reg-copia-inquilino" value="true" checked>
                                     <label class="form-check-label small fw-bold text-success" for="reg-copia-inquilino">
-                                        <i class="bi bi-whatsapp"></i> Copiar al Inquilino
+                                        <i class="bi bi-whatsapp"></i> Cobros Activos
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Switch para Encuestas en Registro -->
+                            <div class="col-md-2 d-flex align-items-center mt-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="enviar_encuesta_inquilino" id="reg-encuesta-inquilino" value="true" checked>
+                                    <label class="form-check-label small fw-bold text-info" for="reg-encuesta-inquilino">
+                                        <i class="bi bi-file-earmark-text"></i> Encuestas Activas
                                     </label>
                                 </div>
                             </div>
@@ -183,31 +184,28 @@
                                 </a>
                             </td>
 
-                            <td class="text-center"> 
-                                <div class="d-flex flex-column align-items-center justify-content-center">
-                                    <div class="btn-group">
-                                        {# Usamos .get('telefono') para que si no existe, no de error #}
-                                        {% if emp.get('telefono') %}
-                                            {% set total_num = (emp.internet|float|default(0)) + (emp.agua|float|default(0)) + (emp.luz|float|default(0)) + (emp.canon|float|default(0)) + (emp.equipo|float|default(0)) %}
-                                            {% set mensaje = "Hola " ~ emp.nombre ~ ", te saluda Osman. El monto pendiente es de C$ " ~ "{:,.2f}".format(total_num) %}
-                                            
-                                            <a href="https://wa.me/{{ emp.telefono }}?text={{ mensaje|urlencode }}" 
-                                            target="_blank" 
-                                            class="btn btn-sm btn-success">
-                                                <i class="bi bi-whatsapp"></i>
-                                            </a>
-                                        {% else %}
-                                            <button class="btn btn-sm btn-outline-secondary" disabled title="Sin teléfono">
-                                                <i class="bi bi-whatsapp"></i>
-                                            </button>
-                                        {% endif %}
+                            <td class="text-start"> 
+                                <!-- Vista informativa de Cobros (Sin ID duplicado y dinámico) -->
+                                <div class="d-flex align-items-center mb-1">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" disabled 
+                                            {% if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' %}checked{% endif %}>
+                                        <label class="form-check-label small fw-bold text-success">
+                                            <i class="bi bi-whatsapp"></i> Cobros
+                                        </label>
                                     </div>
-                                    {% if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' %}
-                                        <span class="badge bg-light text-success border border-success mt-1" style="font-size: 0.65rem;">Copia Activa</span>
-                                    {% else %}
-                                        <span class="badge bg-light text-muted border mt-1" style="font-size: 0.65rem;">Solo Admin</span>
-                                    {% endif %}
                                 </div>
+
+                                <!-- Vista informativa de Encuestas (Sin ID duplicado y dinámico) -->
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" disabled 
+                                            {% if emp.get('enviar_encuesta_inquilino') == true or emp.get('enviar_encuesta_inquilino') == 'true' %}checked{% endif %}>
+                                        <label class="form-check-label small fw-bold text-info">
+                                            <i class="bi bi-file-earmark-text"></i> Encuestas
+                                        </label>
+                                    </div>
+                                </div>                            
                             </td>
                             
                             <td>
@@ -232,7 +230,8 @@
                                             data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
                                             data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
                                             data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}"
-                                            data-copia="{{ 'true' if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' else 'false' }}">
+                                            data-copia="{{ 'true' if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' else 'false' }}"
+                                            data-encuesta-activa="{{ 'true' if emp.get('enviar_encuesta_inquilino') == true or emp.get('enviar_encuesta_inquilino') == 'true' else 'false' }}">
                                             <i class="bi bi-unlock"></i> Desbloquear
                                         </button>
                                     </div>
@@ -240,13 +239,14 @@
                                     <div class="btn-group w-100">
                                         <button class="btn btn-sm btn-edit" data-bs-toggle="modal" data-bs-target="#modalEditar"
                                             data-id="{{ emp.id }}" data-nombre="{{ emp.nombre }}" data-apellido="{{ emp.apellido }}" 
-                                            data-cedula="{{ emp.cedula }}" data-telefono="{{ emp.telefono }}"data-num_contrato="{{ emp.num_contrato }}" 
+                                            data-cedula="{{ emp.cedula }}" data-telefono="{{ emp.telefono }}" data-num_contrato="{{ emp.num_contrato }}" 
                                             data-direccion="{{ emp.direccion }}" data-internet="{{ emp.internet }}" 
                                             data-canon="{{ emp.canon }}" data-agua="{{ emp.agua }}" data-luz="{{ emp.luz }}" 
                                             data-equipo="{{ emp.equipo }}" data-deposito="{{ emp.deposito or 0 }}"
                                             data-fecha_inicio="{{ emp.fecha_inicio }}" data-fecha_fin="{{ emp.fecha_fin }}" 
                                             data-estado="{{ emp.estado }}" data-fecha="{{ emp.fecha }}"
-                                            data-copia="{{ 'true' if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' else 'false' }}">
+                                            data-copia="{{ 'true' if emp.get('enviar_copia_inquilino') == true or emp.get('enviar_copia_inquilino') == 'true' else 'false' }}"
+                                            data-encuesta-activa="{{ 'true' if emp.get('enviar_encuesta_inquilino') == true or emp.get('enviar_encuesta_inquilino') == 'true' else 'false' }}">
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <a href="/ver_pagos/{{ emp.id }}" class="btn btn-sm btn-info text-white">
@@ -266,10 +266,7 @@
         </div>
     </div>
 
-
-    
-    
-        
+    <!-- Modal Editar -->
     <div class="modal fade" id="modalEditar" tabindex="-1">
         <div class="modal-dialog modal-lg">
            <form action="/save" method="POST" class="modal-content" enctype="multipart/form-data" onsubmit="this.querySelector('button[type=submit]').disabled=true;">
@@ -309,11 +306,22 @@
                         </select>
                     </div>
 
+                    <!-- Switch para Cobros en Modal -->
                     <div class="col-md-4 d-flex align-items-center mt-4">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" name="enviar_copia_inquilino" id="edit-copia-inquilino" value="true">
                             <label class="form-check-label small fw-bold text-success" for="edit-copia-inquilino">
-                                <i class="bi bi-whatsapp"></i> Copiar al Inquilino
+                                <i class="bi bi-whatsapp"></i> Cobros Activos
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Switch para Encuestas en Modal -->
+                    <div class="col-md-4 d-flex align-items-center mt-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="enviar_encuesta_inquilino" id="edit-encuesta-inquilino" value="true">
+                            <label class="form-check-label small fw-bold text-info" for="edit-encuesta-inquilino">
+                                <i class="bi bi-file-earmark-text"></i> Encuestas Activas
                             </label>
                         </div>
                     </div>
@@ -333,32 +341,30 @@
                         <small class="text-muted">Si no seleccionas un archivo, se mantendrá la foto actual.</small>
                     </div>
                     
-                                       
                     <div class="col-md-12 text-center border-top pt-3">
-                        <label class="fw-bold text-primary">TOTAL MENSUAL (INDEX_MODALEDITAR)</label>
+                        <label class="fw-bold text-primary">TOTAL MENSUAL</label>
                         <h3 id="edit-total-val" class="fw-bold">C$ 0.00</h3>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-warning fw-bold">Guardar Cambios</button>
                 </div>
-            </form>
+           </form>
         </div>
     </div>
     
-
     <div class="d-flex justify-content-between align-items-center mt-3 mb-4 px-2">
-    <div class="text-muted small">
-        Mostrando <span id="reg-desde">0</span> al <span id="reg-hasta">0</span> de un total de <span id="reg-total">0</span> inquilinos.
-    </div>
-    <div class="btn-group shadow-sm">
-        <button type="button" class="btn btn-sm btn-outline-dark fw-semibold" id="btn-ant" onclick="paginaAnterior()">
-            <i class="bi bi-chevron-left"></i> Anterior
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-dark fw-semibold" id="btn-sig" onclick="paginaSiguiente()">
-            Siguiente <i class="bi bi-chevron-right"></i>
-        </button>
-    </div>
+        <div class="text-muted small">
+            Mostrando <span id="reg-desde">0</span> al <span id="reg-hasta">0</span> de un total de <span id="reg-total">0</span> inquilinos.
+        </div>
+        <div class="btn-group shadow-sm">
+            <button type="button" class="btn btn-sm btn-outline-dark fw-semibold" id="btn-ant" onclick="paginaAnterior()">
+                <i class="bi bi-chevron-left"></i> Anterior
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-dark fw-semibold" id="btn-sig" onclick="paginaSiguiente()">
+                Siguiente <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -389,15 +395,19 @@
             document.getElementById('edit-telefono').value = button.getAttribute('data-telefono');
             document.getElementById('edit-num_contrato').value = button.getAttribute('data-num_contrato');
             
-            // Cargar el estado del switch "Copiar al Inquilino" en el modal
+            // 🟢 Asignar el estado del switch Cobros en el modal
             const copiaActiva = button.getAttribute('data-copia') === 'true';
             document.getElementById('edit-copia-inquilino').checked = copiaActiva;
+
+            // 📊 ASIGNACIÓN CORREGIDA: Sincronizar el estado del switch Encuestas en el modal
+            const encuestaActiva = button.getAttribute('data-encuesta-activa') === 'true';
+            document.getElementById('edit-encuesta-inquilino').checked = encuestaActiva;
 
             setTimeout(calcularTotalEdit, 100);
         });
 
         function calcularTotalRegistro() {
-            const fields = ['reg-internet', 'reg-agua', 'reg-luz', 'reg-canon', 'reg-equipo', 'reg-deposito',];
+            const fields = ['reg-internet', 'reg-agua', 'reg-luz', 'reg-canon', 'reg-equipo', 'reg-deposito'];
             let total = 0;
             fields.forEach(id => {
                 total += parseFloat(document.getElementById(id).value) || 0;
@@ -414,7 +424,6 @@
             document.getElementById('edit-total-val').innerText = "C$ " + total.toLocaleString('en-US', {minimumFractionDigits: 2});
         }
 
-        // Escuchadores para cálculos en tiempo real
         document.querySelectorAll('[id^="reg-"]').forEach(inp => inp.addEventListener('input', calcularTotalRegistro));
         document.querySelectorAll('[id^="edit-"]').forEach(inp => inp.addEventListener('input', calcularTotalEdit));
 
@@ -434,100 +443,74 @@
         }
     </script>
     <script>
-            document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function() {
             const inputInicio = document.getElementById('fecha_inicio');
             const inputFin = document.getElementById('fecha_fin');
 
             inputInicio.addEventListener('change', function() {
                 if (this.value) {
-                    // Creamos la fecha a partir del input (formato YYYY-MM-DD)
-                    // Agregamos 'T12:00:00' para evitar problemas de zona horaria
                     let fecha = new Date(this.value + 'T12:00:00');
-                    
-                    // Sumamos exactamente 12 meses
                     fecha.setMonth(fecha.getMonth() + 12);
-                    
-                    // Extraemos año, mes y día formateados
                     let y = fecha.getFullYear();
                     let m = String(fecha.getMonth() + 1).padStart(2, '0');
                     let d = String(fecha.getDate()).padStart(2, '0');
-                    
-                    // Asignamos el nuevo valor al input de Fin
                     inputFin.value = `${y}-${m}-${d}`;
-                    
-                    // Opcional: Feedback visual para el usuario
                     inputFin.classList.add('is-valid');
                     setTimeout(() => inputFin.classList.remove('is-valid'), 1500);
                 }
             });
         });
     </script>
-
     <script>
-// Configuración de la paginación
-        const filasPorPagina = 12; // 💡 Bloques de 10 filas por página
+        const filasPorPagina = 12; 
         let paginaActual = 1;
         
         function inicializarPaginacion() {
             const tbody = document.querySelector("table tbody");
             if (!tbody) return;
             
-            // 1. Extraemos todas las filas físicas de la tabla a un array en memoria
             const filas = Array.from(tbody.querySelectorAll("tr"));
             
-            // 2. 🧠 ALGORITMO DE ORDENAMIENTO DOBLE: Primero 'Pendiente', luego por Fecha de Pago (Invertido)
             filas.sort((a, b) => {
-                // Evaluamos si el texto de la fila contiene el estado "pendiente"
                 const estadoA = a.innerText.toLowerCase().includes('pendiente') ? 'pendiente' : 'otro';
                 const estadoB = b.innerText.toLowerCase().includes('pendiente') ? 'pendiente' : 'otro';
                 
-                // Buscamos la fecha en formato YYYY-MM-DD usando una expresión regular
                 const regFecha = /\d{4}-\d{2}-\d{2}/;
                 const matchA = a.innerText.match(regFecha);
                 const matchB = b.innerText.match(regFecha);
                 
-                // Si encuentra fecha la usamos, si no, le ponemos una fecha base antigua
                 const fechaA = matchA ? new Date(matchA[0] + 'T12:00:00') : new Date('1970-01-01');
                 const fechaB = matchB ? new Date(matchB[0] + 'T12:00:00') : new Date('1970-01-01');
 
-                // --- Criterio 1: Ordenar por Estado ("Pendiente" va primero) ---
-                if (estadoA === 'pendiente' && estadoB !== 'pendiente') return -1; // Sube 'a'
-                if (estadoA !== 'pendiente' && estadoB === 'pendiente') return 1;  // Sube 'b'
+                if (estadoA === 'pendiente' && estadoB !== 'pendiente') return -1;
+                if (estadoA !== 'pendiente' && estadoB === 'pendiente') return 1;
 
-                // --- Criterio 2: Si tienen el mismo estado, ordenar cronológicamente por Fecha Invertida ---
-                return fechaB - fechaA; // De la fecha más nueva a la más antigua
+                return fechaB - fechaA; 
             });
             
-            // 3. Volvemos a inyectar las filas en el DOM bajo el nuevo orden estricto
             filas.forEach(fila => tbody.appendChild(fila));
             
-            // 4. Parámetros y cálculo de límites de la paginación
             const totalFilas = filas.length;
             const totalPaginas = Math.ceil(totalFilas / filasPorPagina);
             
-            // Evitamos desbordamientos de páginas
             if (paginaActual > totalPaginas) paginaActual = totalPaginas;
             if (paginaActual < 1) paginaActual = 1;
             
-            // Definimos los índices matemáticos de visibilidad (estricto 12)
             const inicio = (paginaActual - 1) * filasPorPagina;
             const fin = inicio + filasPorPagina;
             
-            // 5. Ocultar todas las filas y activar EXCLUSIVAMENTE las del bloque correspondiente
             filas.forEach((fila, indice) => {
                 if (indice >= inicio && indice < fin) {
-                    fila.style.display = ""; // Se muestra de forma limpia
+                    fila.style.display = ""; 
                 } else {
-                    fila.style.display = "none"; // Se oculta del visor
+                    fila.style.display = "none"; 
                 }
             });
             
-            // 6. Actualizar los textos informativos en el pie de la tabla
             document.getElementById("reg-total").textContent = totalFilas;
             document.getElementById("reg-desde").textContent = totalFilas === 0 ? 0 : inicio + 1;
             document.getElementById("reg-hasta").textContent = Math.min(fin, totalFilas);
             
-            // Activar o desactivar botones según los límites reales
             document.getElementById("btn-ant").disabled = (paginaActual === 1 || totalFilas === 0);
             document.getElementById("btn-sig").disabled = (paginaActual === totalPaginas || totalFilas === 0);
         }
@@ -551,10 +534,7 @@
             }
         }
         
-        // Ejecutar la paginación de forma automática al cargar el navegador
         document.addEventListener("DOMContentLoaded", inicializarPaginacion);
-        
     </script>
-
 </body>
 </html>

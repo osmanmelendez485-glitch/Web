@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encuesta de Control Interno</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
+        .card-survey { border-radius: 12px; border: 1px solid #e0e0e0; background: white; }
+    </style>
+</head>
+<body>
+
+    {# ==================================================================== #}
+    {# ⚙️ SECCIÓN CENTRALIZADA: CONFIGURA AQUÍ TUS 10 PREGUNTAS Y OPCIONES   #}
+    {# ==================================================================== #}
+    {% set preguntas = [
+        {
+            "texto": "¿Cómo califica el estado general de la infraestructura al recibir la propiedad?",
+            "opciones": ["Excelente", "Bueno", "Regular", "Malo"],
+            "lleva_foto": true
+        },
+        {
+            "texto": "¿El funcionamiento de los servicios básicos (Agua y Luz) es óptimo?",
+            "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
+            "lleva_foto": true
+        },
+        {
+            "texto": "Calidad y estabilidad de la conexión de Internet provista:",
+            "opciones": ["Estable", "Lento", "Caídas frecuentes", "No utiliza"],
+            "lleva_foto": false
+        },
+        {
+            "texto": "Estado de la pintura, paredes y acabados interiores:",
+            "opciones": ["Perfecto", "Aceptable", "Requiere retoques"],
+            "lleva_foto": true
+        },
+        {
+            "texto": "Limpieza e higiene de las áreas comunes de la propiedad:",
+            "opciones": ["Muy Limpio", "Regular", "Deficiente"],
+            "lleva_foto": false
+        },
+        {
+            "texto": "Nivel de seguridad perimetral (cerraduras, portones, accesos):",
+            "opciones": ["Seguro", "Vulnerable"],
+            "lleva_foto": true
+        },
+        {
+            "texto": "Estado del equipamiento / mobiliario entregado (si aplica):",
+            "opciones": ["Buen estado", "Dañado / Desgastado", "No aplica"],
+            "lleva_foto": false
+        },
+        {
+            "texto": "Claridad en la facturación y cobro de cuotas mensuales:",
+            "opciones": ["Muy Claro", "Confuso a veces"],
+            "lleva_foto": false
+        },
+        {
+            "texto": "Tiempo de respuesta ante reportes de mantenimiento técnicos:",
+            "opciones": ["Rápido", "Lento", "Sin respuesta"],
+            "lleva_foto": false
+        },
+        {
+            "texto": "Nivel de cumplimiento de las normas de convivencia por los vecinos:",
+            "opciones": ["Excelente", "Conflictivo"],
+            "lleva_foto": false
+        }
+    ] %}
+    {# ==================================================================== #}
+
+    <div class="container py-5" style="max-width: 800px;">
+        <div class="card card-survey shadow-sm mb-4">
+            <div class="card-header bg-dark text-white p-4 text-center">
+                <h3 class="mb-1 fw-bold">Encuesta de Satisfacción y Control</h3>
+                <p class="mb-0 text-info small">Inquilino: <strong>{{ emp.nombre }} {{ emp.apellido }}</strong> — Propiedad: <strong>{{ emp.direccion }}</strong></p>
+            </div>
+            <div class="card-body p-4">
+                <form action="/guardar_encuesta" method="POST" enctype="multipart/form-data">
+                    <!-- Campos Ocultos de Control -->
+                    <input type="hidden" name="inquilino_id" value="{{ emp.id }}">
+                    <input type="hidden" name="nombre_inquilino" value="{{ emp.nombre }} {{ emp.apellido }}">
+                    <input type="hidden" name="propiedad" value="{{ emp.direccion }}">
+
+                    <!-- Bucle Automático que genera las 10 preguntas -->
+                    {% for preg in preguntas %}
+                        {% set num_p = loop.index %}
+                        <div class="mb-4 p-3 bg-light rounded border-start border-primary border-3">
+                            <label class="fw-bold mb-2">{{ num_p }}. {{ preg.texto }}</label>
+                            
+                            <div class="d-flex flex-wrap gap-3 my-2">
+                                {% for opcion in preg.opciones %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="p{{ num_p }}" value="{{ opcion }}" required>
+                                        <label class="form-check-label">{{ opcion }}</label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+
+                            {% if preg.lleva_foto %}
+                                <div class="mt-2">
+                                    <label class="small text-muted fw-bold mb-1"><i class="bi bi-camera"></i> Adjuntar evidencia fotográfica (Opcional):</label>
+                                    <input type="file" name="foto_p{{ num_p }}" class="form-control form-control-sm" accept="image/*">
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-success fw-bold px-5">Enviar Formulario Interno</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

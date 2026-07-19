@@ -16,6 +16,10 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import threading
 from datetime import datetime, timezone, timedelta
+import os
+from flask import render_template, request, redirect, url_for, flash
+# (Asegúrate de importar tu objeto de base de datos Firestore / Firebase)
+
 
 # Carga las variables desde el archivo .env si existe
 load_dotenv()
@@ -180,6 +184,8 @@ def save():
     f_inicio_db = f_inicio_raw if f_inicio_raw else datetime.now().strftime('%Y-%m-%d')
     f_fin_db = f_fin_raw if f_fin_raw else datetime.now().strftime('%Y-%m-%d')
     enviar_copia = request.form.get('enviar_copia_inquilino') == 'true'
+    enviar_encuesta = request.form.get('enviar_encuesta_inquilino') == 'true' or request.form.get('enviar_encuesta_inquilino') == 'on'
+
     datos = {
         'nombre': d.get('nombre'),
         'apellido': d.get('apellido'),
@@ -200,6 +206,7 @@ def save():
         'fecha': fecha_dt.strftime('%Y-%m-%d'),
         'meses_contrato': limite_meses,
         'enviar_copia_inquilino': enviar_copia,
+        'enviar_encuesta_inquilino': enviar_encuesta,
     }
 
     # --- 5. GUARDADO Y PAGOS ---
@@ -817,6 +824,161 @@ def registrar_abono(e_id, p_id):
         flash(f"Error al procesar el abono: {e}", "danger")
         
     return redirect(url_for('ver_pagos', id=e_id))
+
+
+# =====================================================================
+# 📊 CONTROL DE ENCUESTAS: RESPONDER, GUARDAR, REVISAR Y ENVÍO MASIVO
+# =====================================================================
+
+@app.route('/encuesta/<id>')
+def abrir_encuesta(id):
+    if not db: 
+        return "Error: No hay conexión con la base de datos."
+        
+    # CORREGIDO: Usar 'Empleados' con E mayúscula para que coincida con el dashboard
+    doc_ref = db.collection('Empleados').document(id)
+    doc = doc_ref.get()
+    if not doc.exists:
+        flash("Inquilino no encontrado", "danger")
+        return redirect(url_for('login_page'))
+    
+    emp = doc.to_dict()
+    emp['id'] = doc.id
+    return render_template('encuesta.html', emp=emp)
+
+
+@app.route('/guardar_encuesta', methods=['POST'])
+def guardar_encuesta():
+    if not db: 
+        return "Error: No hay conexión con la base de datos."
+
+    datos_encuesta = {
+        "inquilino_id": request.form.get("inquilino_id"),
+        "nombre_inquilino": request.form.get("nombre_inquilino"),
+        "propiedad": request.form.get("propiedad"),
+        "fecha_respuesta": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "p1": request.form.get("p1"),
+        "p2": request.form.get("p2"),
+        "p3": request.form.get("p3"),
+        "p4": request.form.get("p4"),
+        "p5": request.form.get("p5"),
+        "p6": request.form.get("p6"),
+        "p7": request.form.get("p7"),
+        "p8": request.form.get("p8"),
+        "p9": request.form.get("p9"),
+        "p10": request.form.get("p10")
+    }
+    
+    # Procesamiento y guardado seguro de archivos multimedia en la carpeta local
+    campos_foto = ['foto_p1', 'foto_p2', 'foto_p4', 'foto_p6']
+    for campo in campos_foto:
+        if campo in request.files:
+            file = request.files[campo]
+            if file and file.filename != '':
+                filename = secure_filename(file.filename)
+                # Añadimos marca de tiempo al nombre del archivo para que no se sobreescriban
+                timestamp = datetime.now().strftime('%Y%m%d%H%M%S_')
+                filename_final = timestamp + filename
+                
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename_final)
+                file.save(filepath)
+                datos_encuesta[campo] = '/' + filepath
+            else:
+                datos_encuesta[campo] = None
+        else:
+            datos_encuesta[campo] = None
+
+    # Persistencia en la subcolección global
+    db.collection('encuestas_respuestas').add(datos_encuesta)
+    
+    return "<h3>Encuesta Enviada Exitosamente. Muchas gracias por tu apoyo. Puedes cerrar esta ventana.</h3>"
+
+
+@app.route('/resumen_encuestas')
+def resumen_encuestas():
+    if 'user' not in session: 
+        return redirect(url_for('login_page'))
+    if not db: 
+        return "Error: No hay conexión con la base de datos."
+        
+    # Recuperamos todas las respuestas enviadas por los inquilinos
+    docs = db.collection('encuestas_respuestas').stream()
+    lista_encuestas = []
+    for doc in docs:
+        d = doc.to_dict()
+        d['id'] = doc.id
+        lista_encuestas.append(d)
+        
+    return render_template('resumen_encuestas.html', encuestas=lista_encuestas)
+
+@app.route('/ejecutar_envio_encuestas_secreto_123')
+def ejecutar_envio_encuestas_automatico():
+    if 'user' not in session: 
+        return redirect(url_for('login_page'))
+    if not db: 
+        return "Error: No hay conexión con la base de datos."
+        
+    try:
+        # 1. Recuperar los contratos desde Firestore
+        docs = db.collection('Empleados').stream()
+        
+        # 2. Credenciales fijas y verificadas de Twilio (Copiadas estrictamente de tu otra función)
+        real_sid = 'AC55a32288ebca14e7286265bd207bd593'
+        real_token = '9ead4c07b599ae86f5118122bbc004f9'
+        
+        # 3. Limpieza estricta de variables del sistema en Render para evitar fallos de autenticación
+        if 'TWILIO_ACCOUNT_SID' in os.environ:
+            del os.environ['TWILIO_ACCOUNT_SID']
+        if 'TWILIO_AUTH_TOKEN' in os.environ:
+            del os.environ['TWILIO_AUTH_TOKEN']
+            
+        os.environ['TWILIO_ACCOUNT_SID'] = ""
+        os.environ['TWILIO_AUTH_TOKEN'] = ""
+        
+        # 4. Inicialización directa del cliente de Twilio
+        client = Client(real_sid, real_token)
+        contador_envios = 0
+        
+        for doc in docs:
+            emp = doc.to_dict()
+            emp['id'] = doc.id
+            
+            telefono = emp.get('telefono')
+            
+            # Validación del nuevo switch independiente para encuestas
+            encuesta_activa = emp.get('enviar_encuesta_inquilino') == True or emp.get('enviar_encuesta_inquilino') == 'true'
+            
+            if telefono and encuesta_activa:
+                # Construcción del link dinámico seguro
+                link_encuesta = f"{request.host_url.replace('http://', 'https://')}encuesta/{emp['id']}"
+                
+                mensaje = (
+                    f"📋 *ENCUESTA DE CONTROL INTERNO* 📋\n\n"
+                    f"Hola *{emp.get('nombre', '')} {emp.get('apellido', '')}*,\n"
+                    f"Te compartimos el enlace de la encuesta de control obligatoria para tu propiedad "
+                    f"ubicada en: *{emp.get('direccion', 'N/A')}*.\n\n"
+                    f"Agradecemos enormemente tu valioso apoyo completándola a través del siguiente link:\n"
+                    f"🔗 {link_encuesta}\n\n"
+                    f"¡Muchas gracias por tu colaboración!"
+                )
+                
+                try:
+                    # Despacho utilizando el número fijo de pruebas actual
+                    client.messages.create(
+                        from_='whatsapp:+14155238886',
+                        body=mensaje,
+                        to='whatsapp:+50589475863'
+                    )
+                    contador_envios += 1
+                except Exception as error_twilio:
+                    print(f"❌ Error en Twilio API para {emp.get('nombre')}: {error_twilio}")
+        
+        flash(f"Proceso completado. Se enviaron {contador_envios} encuestas independientes vía WhatsApp.", "success")
+        return redirect(url_for('dashboard'))
+
+    except Exception as e:
+        flash(f"Error general en el proceso de encuestas: {str(e)}", "danger")
+        return redirect(url_for('dashboard'))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
