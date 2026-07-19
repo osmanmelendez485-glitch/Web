@@ -663,7 +663,6 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         f"Te saludamos para recordarte los saldos pendientes asociados a tu contrato *{empleado.get('num_contrato', 'N/A')}*:\n\n"
         f"{bloque_detalles}\n\n"
         f"💰 *TOTAL NETO PENDIENTE*: *C$ {monto_total:,.2f}*\n\n"
-        f"Depocitar a Nombre de: Osman Meléndez, cuenta Banpro: 10020400388761, Cordobas" 
         f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia correspondiente. ¡Muchas gracias!"
     )
 
