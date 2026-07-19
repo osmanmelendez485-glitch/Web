@@ -18,16 +18,16 @@
     {# ⚙️ COPIA AQUÍ MISMO LAS PREGUNTAS DEL ARCHIVO ANTERIOR PARA IGUALAR  #}
     {# ==================================================================== #}
     {% set titulos_preguntas = [
-        "1. Infraestructura",
-        "2. Serv. Básicos",
-        "3. Internet",
-        "4. Pintura/Paredes",
-        "5. Áreas Comunes",
-        "6. Seguridad",
-        "7. Equipamiento",
-        "8. Facturación",
-        "9. Mantenimiento",
-        "10. Convivencia"
+        "1. Pisos",
+        "2. Techos",
+        "3. Fontanería",
+        "4. Sistema Eléctrico",
+        "5. Puertas de Madera",
+        "6. Verjas",
+        "7. Cerraduras",
+        "8. Pintura",
+        "9. Relación Vecinal",
+        "10. Recomendación"
     ] %}
     {# ==================================================================== #}
 
@@ -46,6 +46,7 @@
                     <thead class="table-dark text-center">
                         <tr>
                             <th class="align-middle">Inquilino / Propiedad</th>
+                            <th class="align-middle" style="min-width: 100px;">Fecha Envío</th> <!-- 📅 Nueva Columna -->
                             {% for titulo in titulos_preguntas %}
                                 <th class="th-pregunta">{{ titulo }}</th>
                             {% endfor %}
@@ -59,6 +60,11 @@
                                 <span class="d-block fw-bold text-dark">{{ enc.nombre_inquilino }}</span>
                                 <span class="text-primary font-monospace small" style="font-size:0.75rem;">{{ enc.propiedad }}</span>
                             </td>
+                            <!-- 📅 Renderizado de la fecha de respuesta -->
+                            <td class="text-center font-monospace text-muted text-nowrap">
+                                {{ enc.fecha_respuesta or '—' }}
+                            </td>
+                            
                             <!-- Mapeo automatizado de las respuestas p1 a p10 -->
                             <td><span class="badge bg-secondary d-block">{{ enc.p1 }}</span></td>
                             <td><span class="badge bg-secondary d-block">{{ enc.p2 }}</span></td>
@@ -85,7 +91,8 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="12" class="text-center text-muted py-4">No se han registrado respuestas de encuestas aún.</td>
+                            <!-- Ajustado a 13 columnas debido a la nueva columna de fecha -->
+                            <td colspan="13" class="text-center text-muted py-4">No se han registrado respuestas de encuestas aún.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
