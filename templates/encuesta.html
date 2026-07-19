@@ -18,53 +18,53 @@
     {# ==================================================================== #}
     {% set preguntas = [
         {
-            "texto": "¿Cómo califica el estado general de la infraestructura al recibir la propiedad?",
+            "texto": "¿Cómo se encuentra el estado de los pisos?",
             "opciones": ["Excelente", "Bueno", "Regular", "Malo"],
             "lleva_foto": true
         },
         {
-            "texto": "¿El funcionamiento de los servicios básicos (Agua y Luz) es óptimo?",
+            "texto": "¿Cómo se encuentra el estado de los techos?",
             "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": true
         },
         {
-            "texto": "Calidad y estabilidad de la conexión de Internet provista:",
-            "opciones": ["Estable", "Lento", "Caídas frecuentes", "No utiliza"],
+            "texto": "¿Cómo se encuentra el estado de la fontaneria?",
+            "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": false
         },
         {
-            "texto": "Estado de la pintura, paredes y acabados interiores:",
-            "opciones": ["Perfecto", "Aceptable", "Requiere retoques"],
+            "texto": "¿Cómo se encuentra el estado del sistema eléctrico?,
+            "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": true
         },
         {
-            "texto": "Limpieza e higiene de las áreas comunes de la propiedad:",
-            "opciones": ["Muy Limpio", "Regular", "Deficiente"],
+            "texto": "¿Cómo se encuentra el estado de las puertas de madera?",
+            "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": false
         },
         {
-            "texto": "Nivel de seguridad perimetral (cerraduras, portones, accesos):",
-            "opciones": ["Seguro", "Vulnerable"],
+            "texto": "¿Cómo se encuentra el estado de las verjas?",
+            "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": true
         },
         {
-            "texto": "Estado del equipamiento / mobiliario entregado (si aplica):",
-            "opciones": ["Buen estado", "Dañado / Desgastado", "No aplica"],
+            "texto": "¿Cómo se encuentra el estado de las cerraduras?:",
+            "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": false
         },
         {
-            "texto": "Claridad en la facturación y cobro de cuotas mensuales:",
-            "opciones": ["Muy Claro", "Confuso a veces"],
+            "texto": "¿Cómo se encuentra el estado de la pintura?",
+            "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": false
         },
         {
-            "texto": "Tiempo de respuesta ante reportes de mantenimiento técnicos:",
-            "opciones": ["Rápido", "Lento", "Sin respuesta"],
+            "texto": "¿Cómo es la relación con los vecinos?",
+            "opciones": ["Excelente", "Bueno", "Intermitente", "Malo"],
             "lleva_foto": false
         },
         {
-            "texto": "Nivel de cumplimiento de las normas de convivencia por los vecinos:",
-            "opciones": ["Excelente", "Conflictivo"],
+            "texto": "¿Recomendaría las propiedades del propietario?",
+            "opciones": ["SI", "NO"],
             "lleva_foto": false
         }
     ] %}
@@ -101,7 +101,7 @@
                             {% if preg.lleva_foto %}
                                 <div class="mt-2">
                                     <label class="small text-muted fw-bold mb-1"><i class="bi bi-camera"></i> Adjuntar evidencia fotográfica (Opcional):</label>
-                                    <input type="file" name="foto_p{{ num_p }}" class="form-control form-control-sm" accept="image/*">
+                                    <input type="file" name="foto_p{{ num_p }}" class="form-control form-control-sm" accept="image/*" capture="environment">
                                 </div>
                             {% endif %}
                         </div>

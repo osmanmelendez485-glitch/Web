@@ -950,7 +950,7 @@ def ejecutar_envio_encuestas_automatico():
             
             if telefono and encuesta_activa:
                 # Construcción del link dinámico seguro
-                link_encuesta = f"{request.host_url.replace('http://', 'https://')}encuesta/{emp['id']}"
+                link_encuesta = f"{request.host_url}encuesta/{emp['id']}"
                 
                 mensaje = (
                     f"📋 *ENCUESTA DE CONTROL INTERNO* 📋\n\n"
