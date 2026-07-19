@@ -661,7 +661,7 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     mensaje = (
         f"📋 *ESTADO DE CUENTA CONSOLIDADO* 📋\n\n"
         f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
-        f"Te saludamos para recordarte los saldos pendientes asociados a tu contrato *{empleado.get('num_contrato', 'N/A')}*:\n\n"
+        f"Te saluda Osman Meléndez para recordarte los saldos pendientes asociados a tu contrato *{empleado.get('num_contrato', 'N/A')}*:\n\n"
         f"{bloque_detalles}\n\n"
         f"💰 *TOTAL NETO PENDIENTE*: *C$ {monto_total:,.2f}*\n\n"
         f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia correspondiente. ¡Muchas gracias!"
@@ -952,7 +952,7 @@ def ejecutar_envio_encuestas_automatico():
                 mensaje = (
                     f"📋 *ENCUESTA DE CONTROL INTERNO* 📋\n\n"
                     f"Hola *{emp.get('nombre', '')} {emp.get('apellido', '')}*,\n"
-                    f"Te compartimos el enlace de la encuesta de control obligatoria para tu propiedad "
+                    f"Te Saluda Osman Melébdes y para compartir el enlace de la encuesta de control para propiedad {emp.get('propiedad', '')}*,\n"
                     f"ubicada en: *{emp.get('direccion', 'N/A')}*.\n\n"
                     f"Agradecemos enormemente tu valioso apoyo completándola a través del siguiente link:\n"
                     f"🔗 {link_encuesta}\n\n"
