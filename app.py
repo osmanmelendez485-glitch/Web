@@ -19,6 +19,7 @@ import threading
 from datetime import datetime, timezone, timedelta
 import os
 from flask import render_template, request, redirect, url_for, flash
+from werkzeug.middleware.proxy_fix import ProxyFix  # 👈 Añadir esta importación arriba
 # (Asegúrate de importar tu objeto de base de datos Firestore / Firebase)
 
 
@@ -26,7 +27,15 @@ from flask import render_template, request, redirect, url_for, flash
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'tu_llave_secreta_aqui'
+app.secret_key = os.environ.get('SECRET_KEY', 'tu_llave_secreta_aqui')
+
+# 🔒 Configuración para HTTPS detrás del Proxy de Render
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# Asegurar las cookies de sesión bajo HTTPS en producción
+if not app.debug:
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['REMOTE_ADDR_HEADER'] = 'HTTP_X_FORWARDED_FOR'
 
 # --- CONFIGURACIÓN DE CARPETAS ---
 UPLOAD_FOLDER = 'static/uploads'
@@ -947,8 +956,13 @@ def ejecutar_envio_encuestas_automatico():
             
             if telefono and encuesta_activa:
                 # Construcción del link dinámico seguro
-                link_encuesta = f"{request.host_url}encuesta/{emp['id']}"
-                
+                # ✅ CAMBIO RECOMENDADO: Forzar HTTPS o detectar el protocolo del proxy de Render
+                scheme = request.headers.get('X-Forwarded-Proto', request.scheme)
+                if scheme == 'http' and not app.debug:
+                    scheme = 'https'  # Forzar https en producción
+
+                host = request.host
+                link_encuesta = f"{scheme}://{host}/encuesta/{emp['id']}"
                 mensaje = (
                     f"📋 *ENCUESTA DE CONTROL INTERNO* 📋\n\n"
                     f"Hola *{emp.get('nombre', '')} {emp.get('apellido', '')}*,\n"
