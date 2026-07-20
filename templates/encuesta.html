@@ -6,29 +6,49 @@
     <title>Encuesta de Control Interno</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    {% set foto_raw = emp.get('url_imagen_propiedad', '') %}
+    {% set nombre_foto = foto_raw.split('/')[-1] if foto_raw else 'propiedad_defecto.jpg' %}
+            
     <style>
-        body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
-        .card-survey { border-radius: 12px; border: 1px solid #e0e0e0; background: white; }
+        body { 
+            background-color: #f4f7f6; 
+            font-family: 'Segoe UI', sans-serif; 
+            position: relative;
+        }
 
+        /* 🟢 MARCA DE AGUA ADAPTADA PARA RENDER / FLASK */
         .watermark {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 85%;
-        max-width: 650px;
-        height: 80%;
-        
-        /* Carga la URL leída desde Firestore */
-        background-image: url("{{ emp.get('url_imagen_propiedad', '/static/uploads/propiedad_defecto.jpg') }}");
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain;
-        
-        opacity: 0.08; /* Suavidad de marca de agua */
-        pointer-events: none; /* No bloquea los clics */
-        z-index: 0;
-    }
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 85%;
+            max-width: 650px;
+            height: 80%;
+            
+            /* Extraemos el nombre del archivo para construir la ruta estática limpia */
+            
+            background-image: url("{{ url_for('static', filename='uploads/' + nombre_foto) }}");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            
+            opacity: 0.10; /* Opacidad sutil para que no incomode la lectura */
+            pointer-events: none; /* No interfiere con clics ni toques en la pantalla */
+            z-index: 0;
+        }
+
+        /* Mantiene el contenido por encima de la marca de agua */
+        .container {
+            position: relative;
+            z-index: 1;
+        }
+
+        .card-survey { 
+            border-radius: 12px; 
+            border: 1px solid #e0e0e0; 
+            background: rgba(255, 255, 255, 0.94); /* Translucidez ligera para dejar ver el fondo */
+        }
     </style>
 </head>
 <body>
