@@ -944,6 +944,7 @@ def ejecutar_envio_encuestas_automatico():
         # 4. Inicialización directa del cliente de Twilio
         client = Client(real_sid, real_token)
         contador_envios = 0
+        errores = []
         
         for doc in docs:
             emp = doc.to_dict()
@@ -974,21 +975,27 @@ def ejecutar_envio_encuestas_automatico():
                 )
                 
                 try:
-                    # Despacho utilizando el número fijo de pruebas actual
+                    # Ajusta el 'to' con el teléfono real del inquilino cuando pases a producción
                     client.messages.create(
                         from_='whatsapp:+14155238886',
                         body=mensaje,
-                        to='whatsapp:+50589475863'
+                        to='whatsapp:+50589475863'  # 👈 O f"whatsapp:{telefono}" si usas números dinámicos
                     )
                     contador_envios += 1
                 except Exception as error_twilio:
-                    print(f"❌ Error en Twilio API para {emp.get('nombre')}: {error_twilio}")
+                    nom_cli = f"{emp.get('nombre', '')} {emp.get('apellido', '')}"
+                    print(f"❌ Error enviando a {nom_cli}: {error_twilio}")
+                    errores.append(f"{nom_cli} ({error_twilio})")
         
-        flash(f"Proceso completado. Se enviaron {contador_envios} encuestas independientes vía WhatsApp.", "success")
+        if errores:
+            flash(f"Se enviaron {contador_envios} encuestas. Hubo fallas con: {', '.join(errores)}", "warning")
+        else:
+            flash(f"Proceso completado. Se enviaron {contador_envios} encuestas vía WhatsApp con éxito.", "success")
+            
         return redirect(url_for('dashboard'))
 
     except Exception as e:
-        flash(f"Error general en el proceso de encuestas: {str(e)}", "danger")
+        flash(f"Error crítico en el servidor: {str(e)}", "danger")
         return redirect(url_for('dashboard'))
 
 @app.route('/imprimir_encuesta/<encuesta_id>')
