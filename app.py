@@ -37,6 +37,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 if not app.debug:
     app.config['SESSION_COOKIE_SECURE'] = True
     app.config['REMOTE_ADDR_HEADER'] = 'HTTP_X_FORWARDED_FOR'
+    app.config['SESSION_COOKIE_SECURE'] = False
 
 # --- CONFIGURACIÓN DE CARPETAS ---
 UPLOAD_FOLDER = 'static/uploads'
@@ -697,19 +698,19 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
         return False
 
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ENVÍO ÚNICO DIARIO DIARIO COMPLETO) ---
+
+# --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ENVÍO ÚNICO DIARIO COMPLETO) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
 def ejecutar_envio_automatico():
     diagnostico = []
     mensajes_enviados = 0
+    errores_totales = 0  # 👈 Control de errores reales
+    
     try:
-        # Configurar la zona horaria nativa de Nicaragua (UTC -6)
         zona_ni = timezone(timedelta(hours=-6))
         fecha_actual = datetime.now(zona_ni)
         hoy_str = fecha_actual.strftime('%Y-%m-%d')
         
-        print(f"🤖 Ejecutando análisis de cobros. Fecha (Nicaragua): {hoy_str}")
-        
-        # 1. REVISAR EN FIREBASE SI YA SE HIZO EL ENVÍO HOY (CUALQUIER DÍA)
         config_ref = db.collection('Configuracion_Cron').document('control_envios')
         config_doc = config_ref.get()
         
@@ -722,7 +723,6 @@ def ejecutar_envio_automatico():
                     "fecha_servidor_managua": hoy_str
                 }), 200
 
-        # 2. PROCESAR Y ESCANEAR CUENTAS SI ES LA PRIMERA EJECUCIÓN DEL DÍA
         inquilinos = db.collection('Empleados').stream()
         total_inquilinos = 0
         total_pagos_revisados = 0
@@ -732,7 +732,7 @@ def ejecutar_envio_automatico():
             total_inquilinos += 1
             empleado = doc.to_dict()
             e_id = doc.id
-            nombre_completo = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')} {empleado.get('cedula', '')}"
+            nombre_completo = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')}"
             
             detalles_pagos_inquilino = []
             monto_total_inquilino = 0.0
@@ -742,18 +742,13 @@ def ejecutar_envio_automatico():
             for p in pagos_query:
                 total_pagos_revisados += 1
                 pago = p.to_dict()
-                
                 estado_pago = pago.get('estado', '').strip().lower()
                 fecha_venc_str = pago.get('fecha_vencimiento', '')
                 
-                # Entran los recibos 'pendiente' o parciales 'parcial'
                 if (estado_pago == 'pendiente' or estado_pago == 'parcial') and fecha_venc_str:
                     if fecha_venc_str <= hoy_str:
                         try:
-                            if 'saldo_pendiente' in pago and estado_pago == 'parcial':
-                                deuda_recibo = float(pago.get('saldo_pendiente', 0.0))
-                            else:
-                                deuda_recibo = float(pago.get('monto', 0.0))
+                            deuda_recibo = float(pago.get('saldo_pendiente', 0.0)) if estado_pago == 'parcial' else float(pago.get('monto', 0.0))
                         except (ValueError, TypeError):
                             deuda_recibo = 0.0
                             
@@ -761,39 +756,44 @@ def ejecutar_envio_automatico():
                             continue
                             
                         monto_total_inquilino += deuda_recibo
-                        
                         tipo_deuda = "Pendiente" if estado_pago == 'pendiente' else "Saldo Parcial"
                         linea_detalle = f"▪️ *Mes*: {pago.get('mes_anio', 'N/A')} | *{tipo_deuda}*: C$ {deuda_recibo:,.2f} (Venció: {fecha_venc_str})"
                         detalles_pagos_inquilino.append(linea_detalle)
             
-            # Si el inquilino acumuló saldos netos pendientes, se despacha el mensaje ya mismo
+            # Intento de envío
             if len(detalles_pagos_inquilino) > 0:
-                try:
-                    enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
+                # 🟢 Evaluamos si la función realmente logró enviar el WhatsApp
+                exito = enviar_whatsapp_consolidado(empleado, detalles_pagos_inquilino, monto_total_inquilino)
+                
+                if exito:
                     mensajes_enviados += 1
                     hubo_envios_hoy = True
-                    diagnostico.append(f"✅ Consolidado Enviado: {nombre_completo} (Deuda Total: C$ {monto_total_inquilino:,.2f})")
-                except Exception as error_twilio:
-                    diagnostico.append(f"❌ Error en Twilio para {nombre_completo}: {str(error_twilio)}")
+                    diagnostico.append(f"✅ Consolidado Enviado: {nombre_completo} (C$ {monto_total_inquilino:,.2f})")
+                else:
+                    errores_totales += 1
+                    diagnostico.append(f"❌ Falló el envío en Twilio para {nombre_completo}")
         
-        # 3. SI SE LOGRARON ENVIAR MENSAJES CON ÉXITO, SE MARCA LA FECHA DEL DÍA PARA CERRAR LA COMPUERTA
+        # Solo guardamos el bloqueo diario si AL MENOS UN MENSAJE fue exitoso
         if hubo_envios_hoy:
             config_ref.set({'ultima_fecha_exitosa': hoy_str}, merge=True)
             diagnostico.append(f"💾 Control guardado en Firebase para el día {hoy_str}.")
-                        
+        
+        # 🟢 Determinar el status real de la respuesta
+        status_respuesta = "success" if errores_totales == 0 and mensajes_enviados > 0 else "warning_with_errors"
+        
         return jsonify({
-            "status": "success",
-            "mensaje": "Proceso de escaneo diario completado con éxito.",
+            "status": status_respuesta,
+            "mensaje": f"Escaneo completado. Exitosos: {mensajes_enviados} | Fallidos por Twilio: {errores_totales}",
             "fecha_servidor_managua": hoy_str,
             "total_inquilinos_escaneados": total_inquilinos,
-            "total_pagos_totales_leidos": total_pagos_revisados,
             "mensajes_enviados_con_exito": mensajes_enviados,
+            "envios_fallidos": errores_totales,
             "detalles_del_proceso": diagnostico
-        }), 200
+        }), 200 if status_respuesta == "success" else 400
 
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
-    
+
 @app.route('/registrar_abono/<e_id>/<p_id>', methods=['POST'])
 def registrar_abono(e_id, p_id):
     if 'user' not in session: return redirect(url_for('login_page'))
