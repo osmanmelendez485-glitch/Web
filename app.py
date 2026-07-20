@@ -669,7 +669,7 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
 
     mensaje = (
         f"📋 *ESTADO DE CUENTA CONSOLIDADO* 📋\n\n"
-        f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
+        f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')} {empleado.get('cedula', '')}*,\n"
         f"Te saluda Osman Meléndez para recordarte los saldos pendientes asociados a tu contrato *{empleado.get('num_contrato', 'N/A')}*:\n\n"
         f"{bloque_detalles}\n\n"
         f"💰 *TOTAL NETO PENDIENTE*: *C$ {monto_total:,.2f}*\n\n"
@@ -725,7 +725,7 @@ def ejecutar_envio_automatico():
             total_inquilinos += 1
             empleado = doc.to_dict()
             e_id = doc.id
-            nombre_completo = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')}"
+            nombre_completo = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')} {empleado.get('cedula', '')}"
             
             detalles_pagos_inquilino = []
             monto_total_inquilino = 0.0
@@ -965,7 +965,7 @@ def ejecutar_envio_encuestas_automatico():
                 link_encuesta = f"{scheme}://{host}/encuesta/{emp['id']}"
                 mensaje = (
                     f"📋 *ENCUESTA DE CONTROL INTERNO* 📋\n\n"
-                    f"Hola *{emp.get('nombre', '')} {emp.get('apellido', '')}*,\n"
+                    f"Hola *{emp.get('nombre', '')} {emp.get('apellido', '')} {emp.get('cedula', '')}*,\n"
                     f"Te Saluda Osman Melébdes y para compartir el enlace de la encuesta de control para propiedad {emp.get('propiedad', '')}*,\n"
                     f"ubicada en: *{emp.get('direccion', 'N/A')}*.\n\n"
                     f"Agradecemos enormemente tu valioso apoyo completándola a través del siguiente link:\n"
