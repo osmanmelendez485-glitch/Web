@@ -219,6 +219,7 @@ def save():
         'meses_contrato': limite_meses,
         'enviar_copia_inquilino': enviar_copia,
         'enviar_encuesta_inquilino': enviar_encuesta,
+        'url_imagen_propiedad': d.get('url_imagen_propiedad', '/static/uploads/propiedad_defecto.jpg'),
     }
 
     # --- 5. GUARDADO Y PAGOS ---
