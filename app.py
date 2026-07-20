@@ -148,20 +148,48 @@ def dashboard():
     except Exception as e:
         return f"Error en Dashboard: {e}"
 
+
 @app.route('/save', methods=['POST'])
 def save():
-    if 'user' not in session: return redirect(url_for('login_page'))
+    if 'user' not in session: 
+        return redirect(url_for('login_page'))
     
     d = request.form
     emp_id = d.get('id')
-    
 
+    # --- 0. PROCESAMIENTO DE LA FOTO DE LA PROPIEDAD ---
+    # Foto por defecto inicial
+    url_imagen = '/static/uploads/propiedad_defecto.jpg'
+
+    # Si es una edición, traemos la foto actual de Firestore para no sobrescribirla
+    if emp_id:
+        doc_existente = db.collection('Empleados').document(emp_id).get()
+        if doc_existente.exists:
+            url_imagen = doc_existente.to_dict().get('url_imagen_propiedad', url_imagen)
+
+    # Verificar si el usuario subió un archivo nuevo desde el input 'foto_propiedad'
+    if 'foto_propiedad' in request.files:
+        file = request.files['foto_propiedad']
+        if file and file.filename != '':
+            filename = secure_filename(file.filename)
+            
+            # Garantizamos la carpeta de destino
+            upload_folder = os.path.join(app.root_path, 'static', 'uploads')
+            os.makedirs(upload_folder, exist_ok=True)
+            
+            # Nombre de archivo único
+            nombre_archivo = f"propiedad_{emp_id or 'nueva'}_{filename}"
+            filepath = os.path.join(upload_folder, nombre_archivo)
+            
+            # Guardar el archivo físicamente
+            file.save(filepath)
+            
+            # Guardar la ruta relativa accesible por Flask
+            url_imagen = f"/static/uploads/{nombre_archivo}"
 
     # --- 1. PROCESAMIENTO SEGURO DE FECHA DE REGISTRO ---
-    # Capturamos el dato y quitamos espacios
     fecha_reg_raw = d.get('fecha', '').strip()
     
-    # Si está vacío o hay error, usamos 'now'
     if not fecha_reg_raw:
         fecha_dt = datetime.now()
     else:
@@ -175,7 +203,6 @@ def save():
     if not num_contrato:
         mes_c = fecha_dt.strftime('%m')
         anio_c = fecha_dt.strftime('%Y')
-        # Contamos registros para el consecutivo
         try:
             todos = db.collection('Empleados').get()
             consecutivo = len(todos) + 1
@@ -190,11 +217,10 @@ def save():
                         safe_float(d.get('luz')) + safe_float(d.get('canon')) + 
                         safe_float(d.get('equipo')))
 
-    # --- 4. PREPARACIÓN DE DATOS (Validando fechas de inicio/fin) ---
+    # --- 4. PREPARACIÓN DE DATOS ---
     f_inicio_raw = d.get('fecha_inicio', '').strip()
     f_fin_raw = d.get('fecha_fin', '').strip()
 
-    # Si vienen vacías, asignamos hoy en formato texto para la DB
     f_inicio_db = f_inicio_raw if f_inicio_raw else datetime.now().strftime('%Y-%m-%d')
     f_fin_db = f_fin_raw if f_fin_raw else datetime.now().strftime('%Y-%m-%d')
     enviar_copia = request.form.get('enviar_copia_inquilino') == 'true'
@@ -221,21 +247,18 @@ def save():
         'meses_contrato': limite_meses,
         'enviar_copia_inquilino': enviar_copia,
         'enviar_encuesta_inquilino': enviar_encuesta,
-        'url_imagen_propiedad': d.get('url_imagen_propiedad', '/static/uploads/propiedad_defecto.jpg'),
+        'url_imagen_propiedad': url_imagen,  # 👈 Guardamos la URL procesada de la foto
     }
 
     # --- 5. GUARDADO Y PAGOS ---
-    
     if emp_id:
-        # 1. Forzar que el diccionario de datos guarde el depósito como un número flotante
         deposito_nuevo = safe_float(d.get('deposito', 0.0))
         datos['deposito'] = deposito_nuevo
         
-        # Actualizamos el documento principal del inquilino
+        # Actualizamos el documento principal en Firestore
         db.collection('Empleados').document(emp_id).update(datos)
         
         try:
-            # 2. Traer todos los pagos ordenados cronológicamente
             pagos_viejos = db.collection('Empleados').document(emp_id).collection('Pagos')\
                              .order_by('fecha_vencimiento').get()
             
@@ -248,7 +271,6 @@ def save():
                 p_data = p.to_dict()
                 pago_update = {}
                 
-                # Modificamos los meses pendientes con el nuevo canon recalculado
                 if p_data.get('estado', 'Pendiente') == 'Pendiente':
                     pago_update.update({
                         'monto': mensualidad_base,
@@ -256,16 +278,11 @@ def save():
                         'mes_anio': fecha_secuencial.strftime('%B %Y')
                     })
                     
-                    # 🟢 AQUÍ ESTÁ LA SOLUCIÓN PARA LA TABLA:
-                    # Si el pago actual tiene un movimiento de depósito activo (Toma o Retorno),
-                    # actualizamos su valor al nuevo monto que acabas de digitar en el modal.
                     mov_actual = safe_float(p_data.get('deposito_movimiento', 0.0))
                     if mov_actual != 0.0:
-                        # Si era una toma (negativo), conserva el signo; si era retorno (positivo), también.
                         signo = -1.0 if mov_actual < 0 else 1.0
                         pago_update['deposito_movimiento'] = deposito_nuevo * signo
                 
-                # Guardamos la sincronización en el primer mes
                 if indice == 0:
                     pago_update['nota'] = f"Depósito Inicial: C$ {deposito_nuevo:,.2f}"
                 
@@ -277,12 +294,11 @@ def save():
         except Exception as err_pagos:
             print(f"⚠️ Error actualizando cuotas: {err_pagos}")
 
-        flash(f"Registro y movimientos de depósito actualizados con éxito", "success")
+        flash("Registro, foto y movimientos de depósito actualizados con éxito", "success")
     else:
         nuevo_doc = db.collection('Empleados').add(datos)
         new_id = nuevo_doc[1].id 
 
-        # Generador de pagos con protección extra
         try:
             fecha_venc = datetime.strptime(f_inicio_db, '%Y-%m-%d')
         except:
@@ -298,16 +314,10 @@ def save():
             }
             db.collection('Empleados').document(new_id).collection('Pagos').add(pago_doc)
             fecha_venc += relativedelta(months=1)
-
-            # Al final de tu función def save():
-        #flash(f"Contrato {num_contrato} procesado", "success")
-    #return redirect(url_for('ver_contrato', num_contrato=num_contrato))
         
-    flash(f"Contrato {num_contrato} creado con éxito", "success")
+        flash(f"Contrato {num_contrato} creado con éxito", "success")
 
     return redirect(url_for('dashboard'))
-
-
 #Boveda de contratos
 
 @app.route('/boveda_contratos')  # <--- Mira que no tenga espacios al final
