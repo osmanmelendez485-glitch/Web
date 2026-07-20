@@ -646,13 +646,12 @@ def inject_version():
     # Esto permite que {{ app_version }} funcione en TODOS tus HTML
     return dict(app_version=VERSION)
 
-
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
-    # 1. Credenciales fijas y verificadas de Twilio
+    # 1. Credenciales de Twilio
     real_sid = 'AC55a32288ebca14e7286265bd207bd593'
     real_token = '9ead4c07b599ae86f5118122bbc004f9'
     
-    # 2. Limpieza estricta de variables del sistema en Render para evitar el Error 401
+    # 2. Limpieza de variables del sistema en Render para evitar Error 401
     if 'TWILIO_ACCOUNT_SID' in os.environ:
         del os.environ['TWILIO_ACCOUNT_SID']
     if 'TWILIO_AUTH_TOKEN' in os.environ:
@@ -661,33 +660,40 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
     os.environ['TWILIO_ACCOUNT_SID'] = ""
     os.environ['TWILIO_AUTH_TOKEN'] = ""
     
-    # 3. Inicialización del cliente por argumentos posicionales
+    # 3. Inicialización del cliente
     client = Client(real_sid, real_token)
-
+    
     # Concatena todos los meses vencidos o parciales
     bloque_detalles = "\n".join(detalles_pagos)
 
     mensaje = (
         f"📋 *ESTADO DE CUENTA CONSOLIDADO* 📋\n\n"
-        f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')} {empleado.get('cedula', '')}*,\n"
+        f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
         f"Te saluda Osman Meléndez para recordarte los saldos pendientes asociados a tu contrato *{empleado.get('num_contrato', 'N/A')}*:\n\n"
         f"{bloque_detalles}\n\n"
         f"💰 *TOTAL NETO PENDIENTE*: *C$ {monto_total:,.2f}*\n\n"
         f"Por favor omitir este mensaje si ya has realizado tu depósito o transferencia correspondiente. ¡Muchas gracias!"
     )
 
+    nom_cli = f"{empleado.get('nombre', '')} {empleado.get('apellido', '')}"
+
     try:
+        # Intento de envío del mensaje de cobro
+        # Reemplazar 'whatsapp:+50589475863' por f"whatsapp:{empleado.get('telefono')}" en producción
         message = client.messages.create(
             from_='whatsapp:+14155238886',  # Sandbox oficial de Twilio
             body=mensaje,
-            to='whatsapp:+50589475863'     # Tu número móvil de pruebas fijo
+            to='whatsapp:+50589475863'
         )
-        print(f"✅ WhatsApp Consolidado enviado con SID: {message.sid}")
-        return True
-    except Exception as e:
-        print(f"❌ Error en Twilio API: {e}")
-        raise e
 
+        print(f"✅ WhatsApp Consolidado enviado a {nom_cli} | SID: {message.sid}")
+        flash(f"Notificación de cobro enviada con éxito a {nom_cli}.", "success")
+        return True
+
+    except Exception as error_twilio:
+        print(f"❌ Error en Twilio API para {nom_cli}: {error_twilio}")
+        flash(f"Se procesó el cobro de {nom_cli}, pero falló el envío de WhatsApp: {error_twilio}", "warning")
+        return False
 
 # --- RUTA AUTOMÁTICA GATILLADA POR CRON-JOB (ENVÍO ÚNICO DIARIO DIARIO COMPLETO) ---
 @app.route('/ejecutar_envio_automatico_secreto_123')
