@@ -74,7 +74,7 @@
         <div class="card card-survey shadow-sm mb-4">
             <div class="card-header bg-dark text-white p-4 text-center">
                 <h3 class="mb-1 fw-bold">Encuesta de Satisfacción y Control</h3>
-                <p class="mb-0 text-info small">Inquilino: <strong>{{ emp.nombre }} {{ emp.apellido }}</strong> — Propiedad: <strong>{{ emp.direccion }}</strong></p>
+                <p class="mb-0 text-info small">Inquilino: <strong>{{ emp.nombre }} {{ emp.apellido }} {{ emp.cedula }}</strong> — Propiedad: <strong>{{ emp.direccion }}</strong></p>
             </div>
             <div class="card-body p-4">
                 <form action="/guardar_encuesta" method="POST" enctype="multipart/form-data">
