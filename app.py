@@ -40,8 +40,10 @@ if not app.debug:
     app.config['SESSION_COOKIE_SECURE'] = False
 
 # --- CONFIGURACIÓN DE CARPETAS ---
-UPLOAD_FOLDER = 'static/uploads'
+UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 

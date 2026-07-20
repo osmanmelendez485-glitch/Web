@@ -9,6 +9,26 @@
     <style>
         body { background-color: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
         .card-survey { border-radius: 12px; border: 1px solid #e0e0e0; background: white; }
+
+        .watermark {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 85%;
+        max-width: 650px;
+        height: 80%;
+        
+        /* Carga la URL leída desde Firestore */
+        background-image: url("{{ emp.get('url_imagen_propiedad', '/static/uploads/propiedad_defecto.jpg') }}");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        
+        opacity: 0.08; /* Suavidad de marca de agua */
+        pointer-events: none; /* No bloquea los clics */
+        z-index: 0;
+    }
     </style>
 </head>
 <body>
@@ -70,7 +90,7 @@
     ] %}
     {# ==================================================================== #}
     <div class="watermark"></div>
-    
+
     <div class="container py-5" style="max-width: 800px;">
         <div class="card card-survey shadow-sm mb-4">
             <div class="card-header bg-dark text-white p-4 text-center">
