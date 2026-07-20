@@ -6,62 +6,45 @@
     <title>Encuesta de Control Interno</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-   
+    
     <style>
         body { 
             background-color: #f4f7f6; 
             font-family: 'Segoe UI', sans-serif; 
-            position: relative;
-        }
-
-        /* MARCA DE AGUA EN LA ENCUESTA */
-        .watermark {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 85%;
-            max-width: 650px;
-            height: 80%;
-            
-            background-image: url("{{ url_final_foto }}");
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain;
-            
-            opacity: 0.12; /* Ajustado para mejor visibilidad */
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .container {
-            position: relative;
-            z-index: 1;
         }
 
         .card-survey { 
             border-radius: 12px; 
             border: 1px solid #e0e0e0; 
-            background: rgba(255, 255, 255, 0.94);
+            background: white; 
+        }
+
+        /* Estilo para la foto en la esquina superior derecha */
+        .foto-propiedad-header {
+            width: 85px;
+            height: 85px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #0dcaf0; /* Borde color cyan/info acorde al diseño */
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
     </style>
 </head>
 <body>
 
-    <div class="watermark"></div>
+    {# ==================================================================== #}
+    {# ⚙️ SECCIÓN CENTRALIZADA: RESOLUCIÓN DE RUTA DE LA FOTO                #}
+    {# ==================================================================== #}
     {% set foto_raw = emp.get('url_imagen_propiedad', '') %}
 
     {% if foto_raw.startswith('http://') or foto_raw.startswith('https://') %}
-        {# Si en la base de datos la URL ya viene completa #}
         {% set url_final_foto = foto_raw %}
     {% elif foto_raw %}
-        {# Si solo tenemos el nombre o la ruta relativa #}
         {% set nombre_foto = foto_raw.split('/')[-1] %}
         {% set url_final_foto = url_for('static', filename='uploads/' + nombre_foto) %}
     {% else %}
-        {# Foto por defecto #}
         {% set url_final_foto = url_for('static', filename='uploads/propiedad_defecto.jpg') %}
-    {% endif %} 
+    {% endif %}
 
     {# ==================================================================== #}
     {# ⚙️ SECCIÓN CENTRALIZADA: CONFIGURA AQUÍ TUS 10 PREGUNTAS Y OPCIONES   #}
@@ -119,14 +102,32 @@
         }
     ] %}
     {# ==================================================================== #}
-       
 
     <div class="container py-5" style="max-width: 800px;">
         <div class="card card-survey shadow-sm mb-4">
-            <div class="card-header bg-dark text-white p-4 text-center">
-                <h3 class="mb-1 fw-bold">Encuesta de Satisfacción y Control</h3>
-                <p class="mb-0 text-info small">Inquilino: <strong>{{ emp.nombre }} {{ emp.apellido }} {{ emp.cedula }}</strong> — Propiedad: <strong>{{ emp.direccion }}</strong></p>
+            
+            <!-- ENCABEZADO CON LA FOTO EN LA ESQUINA SUPERIOR DERECHA -->
+            <div class="card-header bg-dark text-white p-4">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="pe-3">
+                        <h3 class="mb-1 fw-bold">Encuesta de Satisfacción y Control</h3>
+                        <p class="mb-0 text-info small">
+                            Inquilino: <strong>{{ emp.nombre }} {{ emp.apellido }} {{ emp.cedula }}</strong><br>
+                            Propiedad: <strong>{{ emp.direccion }}</strong>
+                        </p>
+                    </div>
+                    <!-- 📷 Foto de la propiedad -->
+                    <div class="text-end">
+                        <a href="{{ url_final_foto }}" target="_blank">
+                            <img src="{{ url_final_foto }}" 
+                                 alt="Foto Propiedad" 
+                                 class="foto-propiedad-header"
+                                 onerror="this.onerror=null; this.src='/static/uploads/propiedad_defecto.jpg';">
+                        </a>
+                    </div>
+                </div>
             </div>
+
             <div class="card-body p-4">
                 <form action="/guardar_encuesta" method="POST" enctype="multipart/form-data">
                     <!-- Campos Ocultos de Control -->
@@ -134,8 +135,6 @@
                     <input type="hidden" name="nombre_inquilino" value="{{ emp.nombre }} {{ emp.apellido }}">
                     <input type="hidden" name="propiedad" value="{{ emp.direccion }}">
 
-                    <!-- Bucle Automático que genera las 10 preguntas -->
-                    
                     <!-- Bucle Automático que genera las 10 preguntas -->
                     {% for preg in preguntas %}
                         {% set num_p = loop.index %}
@@ -152,7 +151,7 @@
                                 {% endfor %}
                             </div>
 
-                            <!-- 💬 NUEVO: Campo de Comentarios por pregunta -->
+                            <!-- Campo de Comentarios por pregunta -->
                             <div class="mt-2 mb-2">
                                 <label class="small text-muted fw-bold mb-1"><i class="bi bi-chat-left-text"></i> Comentarios / Observaciones (Opcional):</label>
                                 <textarea name="comentario_p{{ num_p }}" class="form-control form-control-sm" rows="1" placeholder="Escribe aquí si hay algún detalle..."></textarea>
