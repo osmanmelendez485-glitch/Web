@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 import threading
 from datetime import datetime, timezone, timedelta
 import os
+import time
 from flask import render_template, request, redirect, url_for, flash
 from werkzeug.middleware.proxy_fix import ProxyFix  # 👈 Añadir esta importación arriba
 # (Asegúrate de importar tu objeto de base de datos Firestore / Firebase)
@@ -988,6 +989,8 @@ def ejecutar_envio_encuestas_automatico():
                         to='whatsapp:+50589475863'  # 👈 O f"whatsapp:{telefono}" si usas números dinámicos
                     )
                     contador_envios += 1
+                    time.sleep(2)
+
                 except Exception as error_twilio:
                     nom_cli = f"{emp.get('nombre', '')} {emp.get('apellido', '')}"
                     print(f"❌ Error enviando a {nom_cli}: {error_twilio}")
