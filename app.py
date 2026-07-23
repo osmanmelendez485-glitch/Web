@@ -542,12 +542,24 @@ def ver_pagos(id):
 def toggle_pago(e_id, p_id, nuevo_estado):
     if 'user' not in session: return redirect(url_for('login_page'))
     
-    db.collection('Empleados').document(e_id).collection('Pagos').document(p_id).update({
-        'estado': nuevo_estado
-    })
+    pago_ref = db.collection('Empleados').document(e_id).collection('Pagos').document(p_id)
+    
+    payload = {'estado': nuevo_estado}
+    
+    # Si se fuerza a Pendiente o Suspensión, reseteamos los montos abonados
+    if nuevo_estado in ['Pendiente', 'Suspensión']:
+        payload.update({
+            'monto_pagado': 0.0,
+            'saldo_a_favor': 0.0,
+            'saldo_pendiente': 0.0
+        })
+
+    pago_ref.update(payload)
     
     flash(f"Estado actualizado a {nuevo_estado}", "success")
     return redirect(url_for('ver_pagos', id=e_id))
+
+
 
 @app.route('/suspend/<e_id>/<p_id>')
 def suspend_payment(e_id, p_id):
@@ -807,11 +819,12 @@ def ejecutar_envio_automatico():
     except Exception as e:
         return jsonify({"status": "error", "detalle": str(e)}), 500
 
+    
 @app.route('/registrar_abono/<e_id>/<p_id>', methods=['POST'])
 def registrar_abono(e_id, p_id):
-    if 'user' not in session: return redirect(url_for('login_page'))
+    if 'user' not in session: 
+        return redirect(url_for('login_page'))
     
-    # Capturamos el dinero que ingreses en la casilla de la web
     monto_abonado = safe_float(request.form.get('monto_abonado'))
     nota_opcional = request.form.get('nota', '').strip()
     
@@ -827,28 +840,58 @@ def registrar_abono(e_id, p_id):
         pago_data = pago_doc.to_dict()
         monto_total_mes = safe_float(pago_data.get('monto', 0.0))
         
+        # --- 1. PROCESAMIENTO DE COMPROBANTE / FOTO ---
+        comprobante_url = pago_data.get('comprobante_url', None)
+
+        if 'comprobante' in request.files:
+            file = request.files['comprobante']
+            if file and file.filename != '':
+                filename = secure_filename(file.filename)
+                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                nombre_archivo = f"recibo_{p_id}_{timestamp}_{filename}"
+                
+                upload_folder = app.config['UPLOAD_FOLDER']
+                os.makedirs(upload_folder, exist_ok=True)
+                
+                filepath = os.path.join(upload_folder, nombre_archivo)
+                file.save(filepath)
+                comprobante_url = f"/static/uploads/{nombre_archivo}"
+
+        # --- 2. LÓGICA DE SALDOS ---
         saldo_pendiente = 0.0
         saldo_a_favor = 0.0
         nuevo_estado = "Cancelado"
         
-        # Lógica matemática de saldos
         if monto_abonado < monto_total_mes:
             saldo_pendiente = monto_total_mes - monto_abonado
             nuevo_estado = "Parcial" if monto_abonado > 0 else "Pendiente"
         elif monto_abonado > monto_total_mes:
             saldo_a_favor = monto_abonado - monto_total_mes
             nuevo_estado = "Cancelado"
-            
-        # Guardamos los nuevos campos en Firestore
-        pago_ref.update({
+
+        # --- 3. MANEJO LIMPIO DE LA NOTA (SIN ACUMULACIÓN REPETITIVA) ---
+        # Si el usuario escribió algo en el campo Nota, usamos ese texto.
+        # Si lo dejó vacío, guardamos solo una referencia limpia del abono sin concatenar basura vieja.
+        if nota_opcional:
+            texto_nota = f"Abono C$ {monto_abonado:,.2f} - {nota_opcional}"
+        else:
+            texto_nota = f"Abono C$ {monto_abonado:,.2f}" if nuevo_estado != "Cancelado" else ""
+
+        # --- 4. ACTUALIZACIÓN EN FIRESTORE ---
+        update_payload = {
             'estado': nuevo_estado,
             'monto_pagado': monto_abonado,
             'saldo_pendiente': saldo_pendiente,
             'saldo_a_favor': saldo_a_favor,
-            'nota': f"{pago_data.get('nota', '')} | Abono: C$ {monto_abonado}. {nota_opcional}".strip(" | ")
-        })
+            'nota': texto_nota  # 👈 Asignación directa, ya no se concatena a sí misma
+        }
+
+        if comprobante_url:
+            update_payload['comprobante_url'] = comprobante_url
+
+        pago_ref.update(update_payload)
         
-        flash("Abono/Adelanto grabado con éxito.", "success")
+        flash("Abono grabado con éxito.", "success")
         
     except Exception as e:
         flash(f"Error al procesar el abono: {e}", "danger")
@@ -856,9 +899,6 @@ def registrar_abono(e_id, p_id):
     return redirect(url_for('ver_pagos', id=e_id))
 
 
-# =====================================================================
-# 📊 CONTROL DE ENCUESTAS: RESPONDER, GUARDAR, REVISAR Y ENVÍO MASIVO
-# =====================================================================
 
 @app.route('/encuesta/<id>')
 def abrir_encuesta(id):
@@ -1037,6 +1077,140 @@ def imprimir_encuesta_individual(encuesta_id):
     # Pasamos los datos del documento a la plantilla de impresión individual
     return render_template('imprimir_encuesta.html', enc=encuesta_data)
 
+
+from datetime import datetime
+import os
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from twilio.rest import Client
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime
+import os
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from twilio.rest import Client
+from apscheduler.schedulers.background import BackgroundScheduler
+
+# ---------------------------------------------------------
+# CREDENCIALES DE TWILIO (Ingresadas directamente)
+# ---------------------------------------------------------
+ACCOUNT_SID = "AC55a32288ebca14e7286265bd207bd593"
+AUTH_TOKEN = "9ead4c07b599ae86f5118122bbc004f9"
+
+# Inicializar cliente de Twilio
+twilio_client = Client(ACCOUNT_SID, AUTH_TOKEN)
+
+TWILIO_WHATSAPP_NUMBER = 'whatsapp:+14155238886' # Sandbox Twilio
+TWILIO_SMS_NUMBER = '+14155238886' # Reemplazar con tu número SMS de Twilio si aplica
+
+# ---------------------------------------------------------
+# TAREA EN SEGUNDO PLANO (SCHEDULER
+
+def procesar_mensajes_programados():
+    with app.app_context():
+        ahora = datetime.now()
+        ahora_str = ahora.strftime('%Y-%m-%dT%H:%M')
+        
+        docs = db.collection('MensajesProgramados').where('estado', '==', 'Pendiente').stream()
+        
+        for doc in docs:
+            data = doc.to_dict()
+            fecha_proxima = data.get('fecha_hora_inicio', '')
+            fecha_limite_str = data.get('fecha_fin', '') # Formato: YYYY-MM-DD
+            
+            if fecha_proxima and fecha_proxima <= ahora_str:
+                telefonos = [data.get('telefono_1'), data.get('telefono_2')]
+                canal = data.get('canal', 'whatsapp')
+                mensaje_texto = data.get('mensaje', '')
+                
+                # 1. Enviar el mensaje a los teléfonos
+                for tel in telefonos:
+                    if not tel:
+                        continue
+                    try:
+                        if canal == 'whatsapp':
+                            destinatario = tel if tel.startswith('whatsapp:') else f'whatsapp:{tel}'
+                            twilio_client.messages.create(
+                                body=mensaje_texto,
+                                from_=TWILIO_WHATSAPP_NUMBER,
+                                to=destinatario
+                            )
+                        else:
+                            twilio_client.messages.create(
+                                body=mensaje_texto,
+                                from_=TWILIO_SMS_NUMBER,
+                                to=tel
+                            )
+                        print(f"✅ Mensaje diario enviado a {tel}")
+                    except Exception as e:
+                        print(f"❌ Error al enviar a {tel}: {e}")
+
+                # 2. Calcular la fecha y hora del siguiente día (+24h)
+                dt_actual = datetime.strptime(fecha_proxima, '%Y-%m-%dT%H:%M')
+                dt_siguiente = dt_actual + timedelta(days=1)
+                siguiente_fecha_str = dt_siguiente.strftime('%Y-%m-%dT%H:%M')
+                
+                # Convertir fecha_fin a datetime para comparar (23:59 del último día)
+                dt_limite = datetime.strptime(f"{fecha_limite_str}T23:59", '%Y-%m-%dT%H:%M')
+                
+                # 3. Validar si el siguiente envío entra en el rango
+                if dt_siguiente <= dt_limite:
+                    db.collection('MensajesProgramados').document(doc.id).update({
+                        'fecha_hora_inicio': siguiente_fecha_str,
+                        'estado': 'Pendiente'
+                    })
+                    print(f"🔄 Mensaje programado para el día siguiente: {siguiente_fecha_str}")
+                else:
+                    # Se superó el rango de fechas programado
+                    db.collection('MensajesProgramados').document(doc.id).update({
+                        'estado': 'Completado'
+                    })
+                    print("🏁 Rango de fechas finalizado. Marcado como Completado.")
+# ---------------------------------------------------------
+# INICIALIZACIÓN DEL SCHEDULER
+# ---------------------------------------------------------
+scheduler = BackgroundScheduler()
+# Ejecuta la función de verificación cada 60 segundos
+scheduler.add_job(func=procesar_mensajes_programados, trigger="interval", seconds=60)
+scheduler.start()
+
+# ---------------------------------------------------------
+# RUTAS DE FLASK
+# ---------------------------------------------------------
+@app.route('/mensajes')
+def vista_mensajes():
+    if 'user' not in session: 
+        return redirect(url_for('login_page'))
+    
+    programaciones_ref = db.collection('MensajesProgramados').stream()
+    programaciones = [dict(doc.to_dict(), id=doc.id) for doc in programaciones_ref]
+    return render_template('mensajes.html', programaciones=programaciones)
+
+@app.route('/guardar_programacion_mensaje', methods=['POST'])
+def guardar_programacion_mensaje():
+    if 'user' not in session: 
+        return redirect(url_for('login_page'))
+    
+    payload = {
+        'telefono_1': request.form.get('telefono_1', '').strip(),
+        'telefono_2': request.form.get('telefono_2', '').strip(),
+        'fecha_hora_inicio': request.form.get('fecha_hora_inicio'), # Ej: 2026-07-23T09:00
+        'fecha_fin': request.form.get('fecha_fin'),                 # Ej: 2026-07-30
+        'canal': request.form.get('canal'),
+        'mensaje': request.form.get('mensaje'),
+        'estado': 'Pendiente'
+    }
+    
+    db.collection('MensajesProgramados').add(payload)
+    flash("Programación guardada exitosamente.", "success")
+    return redirect(url_for('vista_mensajes'))
+
+@app.route('/eliminar_programacion/<id_prog>')
+def eliminar_programacion(id_prog):
+    if 'user' not in session: 
+        return redirect(url_for('login_page'))
+    
+    db.collection('MensajesProgramados').document(id_prog).delete()
+    flash("Programación eliminada.", "info")
+    return redirect(url_for('vista_mensajes'))
 
 
 if __name__ == '__main__':

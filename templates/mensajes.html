@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programación de Mensajes - Twilio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; font-size: 0.88rem; }
+        .card-custom { border-radius: 12px; border: none; }
+        .form-label { font-weight: 600; font-size: 0.82rem; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-chat-dots-fill me-2"></i>Programador de Mensajes (Twilio)
+            </span>
+            <a href="/" class="btn btn-outline-light btn-sm">
+                <i class="bi bi-arrow-left-circle me-1"></i> Volver al Panel
+            </a>
+        </div>
+    </nav>
+
+    <div class="container py-2" style="max-width: 800px;">
+        
+        <!-- Mensajes Flash de estado -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- Formulario de Configuración -->
+        <div class="card card-custom shadow-sm mb-4">
+            <div class="card-header bg-white py-3 border-0">
+                <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-clock-history me-2 text-primary"></i>Nueva Programación</h5>
+            </div>
+            <div class="card-body">
+                <form action="/guardar_programacion_mensaje" method="POST">
+                    
+                    <!-- Teléfonos Destino -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted">Teléfono Destino 1</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-telephone-fill"></i></span>
+                                <input type="text" name="telefono_1" class="form-control" placeholder="+505XXXXXXXX" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted">Teléfono Destino 2</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-telephone-fill"></i></span>
+                                <input type="text" name="telefono_2" class="form-control" placeholder="+505XXXXXXXX">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Programación de Tiempo -->
+                    <!-- Programación de Tiempo con Rango de Fechas -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted">Fecha y Hora de Inicio</label>
+                            <input type="datetime-local" name="fecha_hora_inicio" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted">Fecha Fin (Hasta cuándo enviar)</label>
+                            <input type="date" name="fecha_fin" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted">Canal / Canalización</label>
+                            <select name="canal" class="form-select form-select-sm">
+                                <option value="whatsapp">WhatsApp (Twilio)</option>
+                                <option value="sms">SMS Tradicional</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Mensaje a Enviar -->
+                    <div class="mb-3">
+                        <label class="form-label text-muted">Contenido del Mensaje</label>
+                        <textarea name="mensaje" class="form-control form-control-sm" rows="3" placeholder="Escribe el mensaje a enviar..." required></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold">
+                        <i class="bi bi-calendar-check-fill me-1"></i> Programar Envío
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tabla de Mensajes Programados -->
+        <div class="card card-custom shadow-sm">
+            <div class="card-header bg-white py-3 border-0">
+                <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-list-task me-2 text-success"></i>Programaciones Registradas</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.82rem;">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Teléfonos</th>
+                            <th>Rango de Envíos</th>
+                            <th>Repeticiones</th>
+                            <th>Canal</th>
+                            <th>Estado</th>
+                            <th class="text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in programaciones %}
+                        <tr>
+                            <td>
+                                <div><i class="bi bi-phone me-1"></i>{{ item.telefono_1 }}</div>
+                                {% if item.telefono_2 %}
+                                <div><i class="bi bi-phone me-1"></i>{{ item.telefono_2 }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small><b>Desde:</b> {{ item.fecha_hora_inicio }}</small><br>
+                                <small class="text-danger"><b>Hasta:</b> {{ item.fecha_fin }}</small>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ item.repeticiones }} vez/veces</span></td>
+                            <td>
+                                <span class="badge {% if item.canal == 'whatsapp' %}bg-success{% else %}bg-info text-dark{% endif %}">
+                                    {{ item.canal | upper }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if item.estado == 'Pendiente' %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% else %}
+                                    <span class="badge bg-success">Completado</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="/eliminar_programacion/{{ item.id }}" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-3">No hay envíos programados actualmente.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
