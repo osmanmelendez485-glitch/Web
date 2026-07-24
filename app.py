@@ -1381,8 +1381,11 @@ def tarea_escaneo_automatico_trading():
         print(f"🚀 [{ahora}] Ejecutando escaneo automático de Trading...")
         
         # Parámetros por defecto para el escaneo automático
-        intervalo = "1h"
-        periodo = "5d"
+        intervalo = "30m"
+        periodo = "1mo"
+        
+        #intervalo = "1h"
+        #periodo = "5d"
         puntos_min = 6
         tel_destino = "+50589475863"
         
