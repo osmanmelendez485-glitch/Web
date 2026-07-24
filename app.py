@@ -1418,6 +1418,50 @@ scheduler.add_job(
     replace_existing=True
 )
 
+# ---------------------------------------------------------
+# NOTIFICACIÓN DE ESTADO ACTIVO (HORA NICARAGUA)
+# ---------------------------------------------------------
+def enviar_reporte_estado_trading():
+    with app.app_context():
+        # Obtener la hora exacta en zona horaria de Nicaragua
+        zona_ni = ZoneInfo("America/Managua")
+        ahora_ni = datetime.now(zona_ni)
+        
+        dia_semana = ahora_ni.weekday()  # 0 = Lunes, 4 = Viernes, 5 = Sábado, 6 = Domingo
+        hora_actual = ahora_ni.hour
+
+        # Lunes a Viernes (0 a 4) y entre las 6:00 AM y las 2:00 PM (14:00)
+        if 0 <= dia_semana <= 4 and 6 <= hora_actual < 14:
+            account_sid = 'AC55a32288ebca14e7286265bd207bd593'
+            auth_token = '9ead4c07b599ae86f5118122bbc004f9'
+            client = Client(account_sid, auth_token)
+
+            hora_fmt = ahora_ni.strftime("%I:%M %p")
+            mensaje = (f"🟢 *TRADING BOT OPERATIVO*\n"
+                       f"⏰ Hora (Nicaragua): {hora_fmt}\n"
+                       f"✅ El escáner de velas 30m está activo y corriendo en Render.")
+
+            try:
+                client.messages.create(
+                    from_='whatsapp:+14155238886',
+                    body=mensaje,
+                    to='whatsapp:+50589475863'
+                )
+                print(f"📡 Status Heartbeat enviado (Nicaragua: {hora_fmt})")
+            except Exception as e:
+                print(f"❌ Error al enviar estado de WhatsApp: {e}")
+
+# ---------------------------------------------------------
+# REGISTRAR TAREA EN SCHEDULER (CON TIMEZONE NICARAGUA)
+# ---------------------------------------------------------
+scheduler.add_job(
+    func=enviar_reporte_estado_trading,
+    trigger="cron",
+    minute=0,  # Se ejecuta al minuto 0 de cada hora
+    timezone=ZoneInfo("America/Managua"), # Fuerza la evaluación del cron a la hora local de Nicaragua
+    id="job_status_heartbeat",
+    replace_existing=True
+)
 
 
 if __name__ == '__main__':
