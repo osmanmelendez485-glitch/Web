@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner Trading & Alertas Twilio</title>
+    <title>Escaner de Trading & Alertas Email</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
@@ -42,7 +42,7 @@
         <form action="/ejecutar_escaner_trading" method="POST">
             <div class="row g-3 mb-4">
                 <!-- Columna Izquierda: Configuración del Escaneo -->
-                <div class="col-md-4">
+                <div class="col-md-5">
                     <div class="card card-custom shadow-sm h-100">
                         <div class="card-header bg-white py-3 border-0">
                             <h6 class="fw-bold mb-0"><i class="bi bi-sliders me-2 text-primary"></i>Configuración</h6>
@@ -63,21 +63,30 @@
                                 <input type="number" name="puntos_maximos" class="form-control form-control-sm" value="6" min="1" max="10">
                             </div>
 
+                            <!-- Campo Correo Destino (Remplaza a Twilio) -->
                             <div class="mb-3">
-                                <label class="form-label text-muted fw-bold">WhatsApp Destino (Twilio)</label>
-                                <input type="text" name="telefono_destino" class="form-control form-control-sm" value="+50589475863" required>
+                                <label class="form-label text-muted fw-bold">
+                                    <i class="bi bi-envelope-at me-1 text-danger"></i>Correo Destino
+                                </label>
+                                <input type="email" 
+                                       name="email_destino" 
+                                       class="form-control form-control-sm" 
+                                       placeholder="Dejar en blanco para usar correo por defecto">
+                                <div class="form-text text-muted style-italic" style="font-size: 0.75rem;">
+                                    Si no especificas un correo, las alertas se enviarán a la dirección predeterminada del sistema.
+                                </div>
                             </div>
 
-                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold mt-2">
-                                <i class="bi bi-radar me-1"></i> Escanear Ahora
+                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold mt-2 py-2">
+                                <i class="bi bi-radar me-1"></i> Escanear e Informar
                             </button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Columna Derecha: Selección de Instrumentos -->
-                <div class="col-md-8">
-                    <div class="card card-custom shadow-sm">
+                <div class="col-md-7">
+                    <div class="card card-custom shadow-sm h-100">
                         <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
                             <h6 class="fw-bold mb-0"><i class="bi bi-check2-square me-2 text-success"></i>Seleccionar Instrumentos</h6>
                             <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="toggleTodos(this)">Seleccionar Todos</button>
@@ -88,9 +97,9 @@
                                 <div class="col-md-6">
                                     <div class="form-check border rounded p-2 ps-4 bg-white shadow-sm">
                                         <input class="form-check-input chk-instrumento" type="checkbox" name="instrumentos" value="{{ ticker }}" id="chk_{{ loop.index }}" checked>
-                                        <label class="form-check-label w-100 d-flex justify-content-between" for="chk_{{ loop.index }}">
+                                        <label class="form-check-label w-100 d-flex justify-content-between align-items-center" for="chk_{{ loop.index }}">
                                             <span>{{ nombre }}</span>
-                                            <span class="badge bg-light text-dark border">{{ ticker }}</span>
+                                            <span class="badge bg-light text-dark border ms-1">{{ ticker }}</span>
                                         </label>
                                     </div>
                                 </div>
@@ -106,15 +115,23 @@
 
     <script>
         function toggleTodos(source) {
-            checkboxes = document.getElementsByClassName('chk-instrumento');
-            for(var i=0, n=checkboxes.length;i<n;i++) {
-                checkboxes[i].checked = !checkboxes[i].checked;
+            const checkboxes = document.getElementsByClassName('chk-instrumento');
+            let estadoGlobal = false;
+            
+            // Si al menos uno está desmarcado, marcamos todos; si todos están marcados, los desmarcamos
+            for (let i = 0; i < checkboxes.length; i++) {
+                if (!checkboxes[i].checked) {
+                    estadoGlobal = true;
+                    break;
+                }
+            }
+            
+            for (let i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = estadoGlobal;
             }
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
-
-
 </html>

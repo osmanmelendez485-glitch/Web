@@ -1,32 +1,28 @@
+import json
 import os
 import re
-import json
-from zoneinfo import ZoneInfo
-import pandas as pd
-import numpy as np
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from io import BytesIO
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
-import firebase_admin
-from firebase_admin import credentials, firestore
-from werkzeug.utils import secure_filename
-from firebase_admin import storage
-from google.cloud.firestore_v1.base_query import FieldFilter
-from twilio.rest import Client
-from dotenv import load_dotenv
+import smtplib
 import threading
-from datetime import datetime, timezone, timedelta
-import os
 import time
-from flask import render_template, request, redirect, url_for, flash
-from werkzeug.middleware.proxy_fix import ProxyFix  # 👈 Añadir esta importación arriba
-# (Asegúrate de importar tu objeto de base de datos Firestore / Firebase)
+from datetime import datetime, timedelta, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from io import BytesIO
+from zoneinfo import ZoneInfo
 
-import yfinance as yf
+from dateutil.relativedelta import relativedelta
+from dotenv import load_dotenv
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
+from flask import Flask, jsonify, flash, redirect, render_template, request, send_file, session, url_for
+from google.cloud.firestore_v1.base_query import FieldFilter
+import numpy as np
+import pandas as pd
 import pandas_ta_classic as ta
-
-
+from twilio.rest import Client
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.utils import secure_filename
+import yfinance as yf
 
 # Carga las variables desde el archivo .env si existe
 load_dotenv()
@@ -1215,8 +1211,43 @@ def eliminar_programacion(id_prog):
     db.collection('MensajesProgramados').document(id_prog).delete()
     flash("Programación eliminada.", "info")
     return redirect(url_for('vista_mensajes'))
-
 #TRADING
+
+import os
+import smtplib
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from email.message import EmailMessage
+
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from dotenv import load_dotenv
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from apscheduler.schedulers.background import BackgroundScheduler
+
+
+app.secret_key = os.getenv('SECRET_KEY', 'tu_clave_secreta_aqui')
+
+# ---------------------------------------------------------
+# CARGA DE VARIABLES DE ENTORNO SMTP
+# ---------------------------------------------------------
+load_dotenv()
+if os.path.exists("TW.env"):
+    load_dotenv("TW.env")
+
+SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com').strip()
+SMTP_PORT = int(os.getenv('SMTP_PORT', 465))  # Recomendado SSL en puerto 465
+
+raw_user = os.getenv('SMTP_USER', '')
+SMTP_USER = raw_user.strip().strip('"').strip("'") if raw_user else None
+
+raw_pass = os.getenv('SMTP_PASSWORD', '')
+SMTP_PASSWORD = raw_pass.strip().replace(" ", "").strip('"').strip("'") if raw_pass else None
+
+raw_dest = os.getenv('EMAIL_DESTINO_DEFAULT', '')
+EMAIL_DESTINO_DEFAULT = raw_dest.strip().strip('"').strip("'") if raw_dest else SMTP_USER
+
 # ---------------------------------------------------------
 # DICCIONARIO GLOBAL DE INSTRUMENTOS
 # ---------------------------------------------------------
@@ -1229,7 +1260,7 @@ DICCIONARIO_NOMBRES = {
 }
 
 # ---------------------------------------------------------
-# INDICADORES TÉCNICOS NATIVOS (PANDAS 3.0)
+# INDICADORES TÉCNICOS
 # ---------------------------------------------------------
 def calcular_rsi(series, period=14):
     delta = series.diff()
@@ -1243,14 +1274,12 @@ def calcular_adx(df, period=14):
     low = df['Low']
     close = df['Close']
     
-    # Average True Range (ATR)
     tr1 = high - low
     tr2 = (high - close.shift(1)).abs()
     tr3 = (low - close.shift(1)).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.rolling(window=period).mean()
 
-    # Directional Movement (+DM / -DM)
     up_move = high - high.shift(1)
     down_move = low.shift(1) - low
 
@@ -1261,12 +1290,8 @@ def calcular_adx(df, period=14):
     minus_di = 100 * (pd.Series(minus_dm, index=df.index).rolling(window=period).mean() / atr)
 
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
-    adx = dx.rolling(window=period).mean()
-    return adx
+    return dx.rolling(window=period).mean()
 
-# ---------------------------------------------------------
-# FUNCIÓN TÉCNICA DE ANÁLISIS ADX / SMA / RSI
-# ---------------------------------------------------------
 def generar_detalles_orden_web(simbolo, nombre, intervalo, periodo, puntos_min):
     try:
         df = yf.download(simbolo, period=periodo, interval=intervalo, progress=False, auto_adjust=True, timeout=15)
@@ -1279,7 +1304,7 @@ def generar_detalles_orden_web(simbolo, nombre, intervalo, periodo, puntos_min):
         df = df.ffill().dropna()
         precio_actual = float(df['Close'].iloc[-1])
 
-        # 1. ADX Check (Filtro de Fuerza)
+        # ADX Check
         adx_serie = calcular_adx(df, period=14)
         if adx_serie is None or adx_serie.empty or pd.isna(adx_serie.iloc[-1]):
             return None
@@ -1291,7 +1316,7 @@ def generar_detalles_orden_web(simbolo, nombre, intervalo, periodo, puntos_min):
         puntos_long = 3
         puntos_short = 3
 
-        # 2. Media Móvil SMA 50
+        # SMA 50
         sma50_serie = df['Close'].rolling(window=50).mean()
         if sma50_serie is not None and not sma50_serie.empty:
             sma50 = sma50_serie.iloc[-1]
@@ -1301,7 +1326,7 @@ def generar_detalles_orden_web(simbolo, nombre, intervalo, periodo, puntos_min):
                 else:
                     puntos_short += 2
 
-        # 3. RSI 14
+        # RSI 14
         rsi_serie = calcular_rsi(df['Close'], period=14)
         if rsi_serie is not None and not rsi_serie.empty:
             rsi = rsi_serie.iloc[-1]
@@ -1326,7 +1351,47 @@ def generar_detalles_orden_web(simbolo, nombre, intervalo, periodo, puntos_min):
     return None
 
 # ---------------------------------------------------------
-# RUTAS DE LA INTERFAZ WEB
+# FUNCIÓN DE ENVÍO DE EMAIL
+# ---------------------------------------------------------
+def enviar_email_smtp(asunto, cuerpo, destino=None):
+    if not SMTP_USER or not SMTP_PASSWORD:
+        print("❌ Error: Credenciales de SMTP no configuradas en el entorno.")
+        return False
+
+    destinatario = destino.strip() if destino and destino.strip() else EMAIL_DESTINO_DEFAULT
+
+    if not destinatario:
+        print("❌ Error: No se especificó dirección de destino.")
+        return False
+
+    msg = EmailMessage()
+    msg.set_content(cuerpo)
+    msg['Subject'] = asunto
+    msg['From'] = SMTP_USER
+    msg['To'] = destinatario
+
+    try:
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"❌ Error enviando Email por SMTP: {e}")
+        return False
+
+def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
+    asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
+    cuerpo = (f"🚀 OPORTUNIDAD TRADING 24/7\n\n"
+              f"Instrumento: {orden['nombre']} ({orden['ticker']})\n"
+              f"Acción: {orden['accion']}\n"
+              f"Precio Actual: {orden['precio']}\n"
+              f"ADX: {orden['adx_valor']} 🔥\n"
+              f"Puntuación: {orden['puntos']}/{puntos_max}")
+    
+    return enviar_email_smtp(asunto, cuerpo, destino)
+
+# ---------------------------------------------------------
+# RUTAS FLASK
 # ---------------------------------------------------------
 @app.route('/trading')
 def vista_trading():
@@ -1342,149 +1407,89 @@ def ejecutar_escaner_trading():
     seleccionados = request.form.getlist('instrumentos')
     intervalo = request.form.get('intervalo', '1h')
     puntos_min = int(request.form.get('puntos_maximos', 6))
-    tel_destino = request.form.get('telefono_destino', '+50589475863').strip()
+    
+    email_ingresado = request.form.get('email_destino')
+    email_destino = email_ingresado.strip() if email_ingresado and email_ingresado.strip() else (EMAIL_DESTINO_DEFAULT or "").strip()
 
-    if not seleccionados:
-        flash("Debes seleccionar al menos un instrumento.", "warning")
+    if not email_destino or not seleccionados:
+        flash("Revisa la selección de instrumentos y correo de destino.", "warning")
         return redirect(url_for('vista_trading'))
 
     periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
     periodo = periodo_map.get(intervalo, '5d')
-
     alertas_enviadas = 0
 
     for ticker in seleccionados:
         nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
         orden = generar_detalles_orden_web(ticker, nombre, intervalo, periodo, puntos_min)
-        
-        if orden:
-            exito = enviar_whatsapp_twilio_web(orden, tel_destino, puntos_min)
-            if exito:
-                alertas_enviadas += 1
+        if orden and enviar_alerta_trading_email(orden, email_destino, puntos_min):
+            alertas_enviadas += 1
 
-    if alertas_enviadas > 0:
-        flash(f"¡Escaneo completado! Se enviaron {alertas_enviadas} alertas a tu WhatsApp.", "success")
-    else:
-        flash("Escaneo finalizado. No se encontraron oportunidades que superen los puntos mínimos.", "info")
-
+    flash(f"Escaneo completado. Se enviaron {alertas_enviadas} alertas.", "success" if alertas_enviadas > 0 else "info")
     return redirect(url_for('vista_trading'))
 
 # ---------------------------------------------------------
-# ENVÍO DE ALERTAS VÍA TWILIO WHATSAPP
+# TAREAS EN SEGUNDO PLANO Y SCHEDULER (PREVENCIÓN DE DUPLICADOS)
 # ---------------------------------------------------------
-def enviar_whatsapp_twilio_web(orden, destino, puntos_max):
-    account_sid = 'AC55a32288ebca14e7286265bd207bd593'
-    auth_token = '9ead4c07b599ae86f5118122bbc004f9'
-    client = Client(account_sid, auth_token)
-
-    destinatario = destino if destino.startswith('whatsapp:') else f'whatsapp:{destino}'
-
-    mensaje = (f"🚀 OPORTUNIDAD TRADING 24/7\n"
-               f"Instrumento: {orden['nombre']} ({orden['ticker']})\n"
-               f"Acción: {orden['accion']}\n"
-               f"Precio Actual: {orden['precio']}\n"
-               f"ADX: {orden['adx_valor']} 🔥\n"
-               f"Puntuación: {orden['puntos']}/{puntos_max}")
-
-    try:
-        client.messages.create(
-            from_='whatsapp:+14155238886',
-            body=mensaje,
-            to=destinatario
-        )
-        return True
-    except Exception as e:
-        print(f"❌ Error enviando WhatsApp: {e}")
-        return False
-
-# ---------------------------------------------------------
-# TAREA BKG: ESCANEO 24/7 EN SEGUNDO PLANO
-# ---------------------------------------------------------
-# Guardar registro de alertas recientes para no repetir en 1 hora
 ALERTAS_ENVIADAS_CACHE = {}
 
 def tarea_escaneo_automatico_trading():
     with app.app_context():
         zona_ni = ZoneInfo("America/Managua")
         ahora_dt = datetime.now(zona_ni)
-        ahora_str = ahora_dt.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"🚀 [{ahora_str}] Ejecutando escaneo automático 24/7...")
+        print(f"🚀 [{ahora_dt.strftime('%Y-%m-%d %H:%M:%S')}] Escaneo automático en ejecución...")
         
-        intervalo = "30m"
-        periodo = "1mo"
-        puntos_min = 6
-        tel_destino = "+50589475863"
-        
-        todos_los_tickers = list(DICCIONARIO_NOMBRES.keys())
+        intervalo, periodo, puntos_min = "30m", "1mo", 6
+        alertas_enviadas = 0
 
-        for ticker in todos_los_tickers:
-            # Si ya enviamos alerta de este ticker en los últimos 60 minutos, lo saltamos
+        for ticker, nombre in DICCIONARIO_NOMBRES.items():
             ultimo_envio = ALERTAS_ENVIADAS_CACHE.get(ticker)
             if ultimo_envio and (ahora_dt - ultimo_envio).total_seconds() < 3600:
                 continue
 
-            nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
             orden = generar_detalles_orden_web(ticker, nombre, intervalo, periodo, puntos_min)
-            
-            if orden:
-                exito = enviar_whatsapp_twilio_web(orden, tel_destino, puntos_min)
-                if exito:
-                    ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
-                    print(f"✅ Alerta enviada a WhatsApp para {ticker}")
+            if orden and enviar_alerta_trading_email(orden, EMAIL_DESTINO_DEFAULT, puntos_min):
+                ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
+                alertas_enviadas += 1
+                print(f"✅ Alerta enviada para {ticker}")
 
-        print("🏁 Escaneo 24/7 finalizado.")
-        
-# Programar escaneo automático cada 5 minutos
-scheduler.add_job(
-    func=tarea_escaneo_automatico_trading,
-    trigger="interval",
-    minutes=5,
-    id="job_trading_automatico",
-    replace_existing=True
-)
-if not scheduler.running:
-    scheduler.start()
-    print("🚀 APScheduler iniciado correctamente en Render.")
-# ---------------------------------------------------------
-# NOTIFICACIÓN DE ESTADO ACTIVO 24/7 (HEARTBEAT)
-# ---------------------------------------------------------
+        print(f"🏁 Escaneo finalizado. Alertas enviadas: {alertas_enviadas}")
+
 def enviar_reporte_estado_trading():
     with app.app_context():
         zona_ni = ZoneInfo("America/Managua")
-        ahora_ni = datetime.now(zona_ni)
-        
-        account_sid = 'AC55a32288ebca14e7286265bd207bd593'
-        auth_token = '9ead4c07b599ae86f5118122bbc004f9'
-        client = Client(account_sid, auth_token)
+        hora_fmt = datetime.now(zona_ni).strftime("%I:%M %p (%d/%m)")
+        asunto = f"🟢 TRADING BOT OPERATIVO ({hora_fmt})"
+        mensaje = f"🟢 BOT OPERATIVO 24/7\n\nHora (Nicaragua): {hora_fmt}\nEscáner analizando velas 30m continuamente."
+        enviar_email_smtp(asunto, mensaje, EMAIL_DESTINO_DEFAULT)
 
-        hora_fmt = ahora_ni.strftime("%I:%M %p (%d/%m)")
-        mensaje = (f"🟢 *TRADING BOT OPERATIVO 24/7*\n"
-                   f"⏰ Hora (Nicaragua): {hora_fmt}\n"
-                   f"✅ Escáner activo escaneando velas 30m continuamente.")
+# Inicialización segura del Scheduler para Gunicorn / Render
+scheduler = BackgroundScheduler(daemon=True)
 
-        try:
-            client.messages.create(
-                from_='whatsapp:+14155238886',
-                body=mensaje,
-                to='whatsapp:+50589475863'
-            )
-            print(f"📡 Status Heartbeat 24/7 enviado (Nicaragua: {hora_fmt})")
-        except Exception as e:
-            print(f"❌ Error al enviar estado de WhatsApp: {e}")
+def inicializar_scheduler():
+    if not scheduler.running:
+        scheduler.add_job(
+            func=tarea_escaneo_automatico_trading,
+            trigger="interval",
+            minutes=5,
+            id="job_trading_automatico",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            func=enviar_reporte_estado_trading,
+            trigger="cron",
+            minute=0,
+            timezone=ZoneInfo("America/Managua"),
+            id="job_status_heartbeat",
+            replace_existing=True
+        )
+        scheduler.start()
+        print("🚀 APScheduler iniciado correctamente en Render.")
 
-# Programar reporte de estado al inicio de cada hora (24 hrs)
-scheduler.add_job(
-    func=enviar_reporte_estado_trading,
-    trigger="cron",
-    minute=0,
-    timezone=ZoneInfo("America/Managua"),
-    id="job_status_heartbeat",
-    replace_existing=True
-)
-
-#TRADING
-
+# Arrancar el scheduler al levantar la app
+inicializar_scheduler()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=5000)
+
+
