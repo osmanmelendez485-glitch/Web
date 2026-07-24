@@ -1224,17 +1224,17 @@ def eliminar_programacion(id_prog):
 # Diccionario Global de Instrumentos
 DICCIONARIO_NOMBRES = {
     'GC=F': 'Oro (Refugio)', 'SI=F': 'Plata (Refugio)', 'HG=F': 'Cobre',
-    'DX-Y.NYB': 'Indice Dolar (DXY)', 'EURUSD=X': 'Euro/Dolar', 
-    'GBPUSD=X': 'Libra/Dolar', 'USDJPY=X': 'Dolar/Yen', 'AUDUSD=X': 'Aus/Dolar',
-    'NVDA': 'NVIDIA (Chips)', 'AMD': 'AMD (Chips)', 'AVGO': 'Broadcom (Infra)',
-    'SMCI': 'Super Micro Computer', 'PLTR': 'Palantir (IA/Defensa)', 
-    'TEAM': 'Atlassian (Software)', 'MSFT': 'Microsoft (IA)', 'AAPL': 'Apple', 
-    'AMZN': 'Amazon', 'META': 'Meta (FB)', 'LMT': 'Lockheed Martin',
-    'RTX': 'Raytheon (RTX)', 'NOC': 'Northrop Grumman', 'GD': 'General Dynamics',
-    'BA': 'Boeing Defence', 'CL=F': 'Petroleo WTI', 'NG=F': 'Gas Natural',
+    #'DX-Y.NYB': 'Indice Dolar (DXY)', 'EURUSD=X': 'Euro/Dolar', 
+   # 'GBPUSD=X': 'Libra/Dolar', 'USDJPY=X': 'Dolar/Yen', 'AUDUSD=X': 'Aus/Dolar',
+   # 'NVDA': 'NVIDIA (Chips)', 'AMD': 'AMD (Chips)', 'AVGO': 'Broadcom (Infra)',
+   # 'SMCI': 'Super Micro Computer', 'PLTR': 'Palantir (IA/Defensa)', 
+   # 'TEAM': 'Atlassian (Software)', 'MSFT': 'Microsoft (IA)', 'AAPL': 'Apple', 
+    #'AMZN': 'Amazon', 'META': 'Meta (FB)', 'LMT': 'Lockheed Martin',
+    #'RTX': 'Raytheon (RTX)', 'NOC': 'Northrop Grumman', 'GD': 'General Dynamics',
+    #'BA': 'Boeing Defence', 'CL=F': 'Petroleo WTI', 'NG=F': 'Gas Natural',
     'NQ=F': 'Nasdaq 100', 'ES=F': 'S&P 500', 'YM=F': 'Dow Jones /US 30',
     'TSLA': 'Tesla', 'INTC': 'Intel', 'BTC-USD': 'Bitcoin', 
-    'ETH-USD': 'Ethereum', 'SOL-USD': 'Solana', 'XRP-USD': 'Ripple (XRP)'
+    #'ETH-USD': 'Ethereum', 'SOL-USD': 'Solana', 'XRP-USD': 'Ripple (XRP)'
 }
 
 # --- RUTA DE LA VISTA HTML ---
