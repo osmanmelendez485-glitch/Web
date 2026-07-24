@@ -23,6 +23,10 @@ from flask import render_template, request, redirect, url_for, flash
 from werkzeug.middleware.proxy_fix import ProxyFix  # 👈 Añadir esta importación arriba
 # (Asegúrate de importar tu objeto de base de datos Firestore / Firebase)
 
+import yfinance as yf
+import pandas_ta_classic as ta
+
+
 
 # Carga las variables desde el archivo .env si existe
 load_dotenv()
@@ -1211,6 +1215,206 @@ def eliminar_programacion(id_prog):
     db.collection('MensajesProgramados').document(id_prog).delete()
     flash("Programación eliminada.", "info")
     return redirect(url_for('vista_mensajes'))
+
+
+
+
+
+#TRADING
+# Diccionario Global de Instrumentos
+DICCIONARIO_NOMBRES = {
+    'GC=F': 'Oro (Refugio)', 'SI=F': 'Plata (Refugio)', 'HG=F': 'Cobre',
+    'DX-Y.NYB': 'Indice Dolar (DXY)', 'EURUSD=X': 'Euro/Dolar', 
+    'GBPUSD=X': 'Libra/Dolar', 'USDJPY=X': 'Dolar/Yen', 'AUDUSD=X': 'Aus/Dolar',
+    'NVDA': 'NVIDIA (Chips)', 'AMD': 'AMD (Chips)', 'AVGO': 'Broadcom (Infra)',
+    'SMCI': 'Super Micro Computer', 'PLTR': 'Palantir (IA/Defensa)', 
+    'TEAM': 'Atlassian (Software)', 'MSFT': 'Microsoft (IA)', 'AAPL': 'Apple', 
+    'AMZN': 'Amazon', 'META': 'Meta (FB)', 'LMT': 'Lockheed Martin',
+    'RTX': 'Raytheon (RTX)', 'NOC': 'Northrop Grumman', 'GD': 'General Dynamics',
+    'BA': 'Boeing Defence', 'CL=F': 'Petroleo WTI', 'NG=F': 'Gas Natural',
+    'NQ=F': 'Nasdaq 100', 'ES=F': 'S&P 500', 'YM=F': 'Dow Jones /US 30',
+    'TSLA': 'Tesla', 'INTC': 'Intel', 'BTC-USD': 'Bitcoin', 
+    'ETH-USD': 'Ethereum', 'SOL-USD': 'Solana', 'XRP-USD': 'Ripple (XRP)'
+}
+
+# --- RUTA DE LA VISTA HTML ---
+@app.route('/trading')
+def vista_trading():
+    if 'user' not in session:
+        return redirect(url_for('login_page'))
+    return render_template('trading.html', instrumentos=DICCIONARIO_NOMBRES)
+
+# --- RUTA PARA EJECUTAR EL ESCANEO DESDE LA WEB ---
+@app.route('/ejecutar_escaner_trading', methods=['POST'])
+def ejecutar_escaner_trading():
+    if 'user' not in session:
+        return redirect(url_for('login_page'))
+    
+    seleccionados = request.form.getlist('instrumentos')
+    intervalo = request.form.get('intervalo', '1h')
+    puntos_min = int(request.form.get('puntos_maximos', 6))
+    tel_destino = request.form.get('telefono_destino', '+50589475863').strip()
+
+    if not seleccionados:
+        flash("Debes seleccionar al menos un instrumento.", "warning")
+        return redirect(url_for('vista_trading'))
+
+    # Mapa de periodo relativo según el intervalo
+    periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
+    periodo = periodo_map.get(intervalo, '5d')
+
+    alertas_enviadas = 0
+
+    for ticker in seleccionados:
+        nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
+        orden = generar_detalles_orden_web(ticker, nombre, intervalo, periodo, puntos_min)
+        
+        if orden:
+            # Enviar mensaje a Twilio WhatsApp
+            exito = enviar_whatsapp_twilio_web(orden, tel_destino, puntos_min)
+            if exito:
+                alertas_enviadas += 1
+
+    if alertas_enviadas > 0:
+        flash(f"¡Escaneo completado! Se enviaron {alertas_enviadas} alertas a tu WhatsApp.", "success")
+    else:
+        flash("Escaneo finalizado. No se encontraron oportunidades que superen los puntos mínimos.", "info")
+
+    return redirect(url_for('vista_trading'))
+
+# --- FUNCIÓN DE ANÁLISIS ADAPTADA PARA WEB ---
+# --- FUNCIÓN DE ANÁLISIS ADAPTADA PARA WEB (CORREGIDA) ---
+def generar_detalles_orden_web(simbolo, nombre, intervalo, periodo, puntos_min):
+    try:
+        df = yf.download(simbolo, period=periodo, interval=intervalo, progress=False, auto_adjust=True, timeout=15)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+            
+        # Aseguramos al menos 50 velas para poder calcular la SMA50 sin errores
+        if df is None or df.empty or len(df) < 50:
+            return None
+
+        df = df.ffill().dropna()
+        precio_actual = float(df['Close'].iloc[-1])
+
+        # 1. ADX Check (Filtro de Fuerza)
+        adx_serie = ta.adx(df['High'], df['Low'], df['Close'])
+        if adx_serie is None or adx_serie.empty:
+            return None
+            
+        valor_adx_num = round(float(adx_serie['ADX_14'].iloc[-1]), 2)
+        if valor_adx_num < 25:
+            return None
+
+        # Si supera 25, asigna la base de 3 puntos
+        puntos_long = 3
+        puntos_short = 3
+
+        # 2. Media Móvil SMA 50
+        sma50_serie = ta.sma(df['Close'], length=50)
+        if sma50_serie is not None and not sma50_serie.empty:
+            sma50 = sma50_serie.iloc[-1]
+            if pd.notna(sma50):
+                if precio_actual > sma50:
+                    puntos_long += 2
+                else:
+                    puntos_short += 2
+
+        # 3. RSI 14
+        rsi_serie = ta.rsi(df['Close'], length=14)
+        if rsi_serie is not None and not rsi_serie.empty:
+            rsi = rsi_serie.iloc[-1]
+            if pd.notna(rsi) and (40 < rsi < 60):
+                puntos_long += 2
+                puntos_short += 2
+
+        # Evaluación de Dirección y Puntuación
+        puntos_finales = max(puntos_long, puntos_short)
+        accion = "COMPRA/LONG" if puntos_long >= puntos_short else "VENTA/SHORT"
+
+        if puntos_finales >= puntos_min:
+            return {
+                "ticker": simbolo,
+                "nombre": nombre,
+                "precio": round(precio_actual, 4),
+                "puntos": puntos_finales,
+                "adx_valor": valor_adx_num,
+                "accion": accion
+            }
+    except Exception as e:
+        print(f"⚠️ Error procesando {simbolo}: {e}")
+    return None
+
+
+# --- ENVÍO A TWILIO WHATSAPP ---
+def enviar_whatsapp_twilio_web(orden, destino, puntos_max):
+    account_sid = 'AC55a32288ebca14e7286265bd207bd593'
+    auth_token = '9ead4c07b599ae86f5118122bbc004f9'
+    client = Client(account_sid, auth_token)
+
+    destinatario = destino if destino.startswith('whatsapp:') else f'whatsapp:{destino}'
+
+    mensaje = (f"🚀 OPORTUNIDAD TRADING\n"
+               f"Instrumento: {orden['nombre']} ({orden['ticker']})\n"
+               f"Acción: {orden['accion']}\n"
+               f"Precio Actual: {orden['precio']}\n"
+               f"ADX: {orden['adx_valor']} 🔥\n"
+               f"Puntuación: {orden['puntos']}/{puntos_max}")
+
+    try:
+        client.messages.create(
+            from_='whatsapp:+14155238886',
+            body=mensaje,
+            to=destinatario
+        )
+        return True
+    except Exception as e:
+        print(f"❌ Error enviando WhatsApp: {e}")
+        return False
+    
+# ---------------------------------------------------------
+# ESCANEO DE TRADING AUTOMÁTICO EN SEGUNDO PLANO (RENDER)
+# ---------------------------------------------------------
+def tarea_escaneo_automatico_trading():
+    with app.app_context():
+        ahora = datetime.now().strftime("%H:%M:%S")
+        print(f"🚀 [{ahora}] Ejecutando escaneo automático de Trading...")
+        
+        # Parámetros por defecto para el escaneo automático
+        intervalo = "1h"
+        periodo = "5d"
+        puntos_min = 6
+        tel_destino = "+50589475863"
+        
+        # Lista con todos los tickers de tu diccionario
+        todos_los_tickers = list(DICCIONARIO_NOMBRES.keys())
+        alertas_enviadas = 0
+
+        for ticker in todos_los_tickers:
+            nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
+            orden = generar_detalles_orden_web(ticker, nombre, intervalo, periodo, puntos_min)
+            
+            if orden:
+                # Enviar alerta por Twilio WhatsApp
+                exito = enviar_whatsapp_twilio_web(orden, tel_destino, puntos_min)
+                if exito:
+                    alertas_enviadas += 1
+                    print(f"✅ Alerta enviada a WhatsApp para {ticker} ({orden['puntos']} pts)")
+
+        print(f"🏁 Escaneo automático finalizado. Alertas enviadas: {alertas_enviadas}")
+
+# ---------------------------------------------------------
+# REGISTRAR TAREA EN EL SCHEDULER
+# ---------------------------------------------------------
+# Agregamos este trabajo al scheduler que ya tienes iniciado en tu app.py
+scheduler.add_job(
+    func=tarea_escaneo_automatico_trading,
+    trigger="interval",
+    minutes=5,
+    id="job_trading_automatico",
+    replace_existing=True
+)
+
 
 
 if __name__ == '__main__':

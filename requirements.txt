@@ -16,3 +16,5 @@ firebase-admin
 python-dotenv
 twilio
 APScheduler
+yfinance
+pandas_ta_classic
