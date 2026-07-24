@@ -1434,7 +1434,9 @@ scheduler.add_job(
     id="job_trading_automatico",
     replace_existing=True
 )
-
+if not scheduler.running:
+    scheduler.start()
+    print("🚀 APScheduler iniciado correctamente en Render.")
 # ---------------------------------------------------------
 # NOTIFICACIÓN DE ESTADO ACTIVO 24/7 (HEARTBEAT)
 # ---------------------------------------------------------
