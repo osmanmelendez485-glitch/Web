@@ -17,38 +17,71 @@
         .info-sub { display: block; font-size: 0.82rem; color: #6c757d; }
         .badge-cancelado { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; font-weight: 600; }
         .badge-pendiente { background-color: #ffeded; color: #dc3545; border: 1px solid #dc3545; font-weight: 600; }
-        .btn-fijo {
-            width: 150px; 
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px; 
+        
+        /* Asegura que el navbar ocupe todo el ancho disponible */
+        .navbar {
+            width: 100% !important;
         }
+
+        /* Botones ultra compactos para que quepan sin desbordar */
+        .btn-compact {
+            padding: 3px 8px !important;
+            font-size: 0.78rem !important;
+            white-space: nowrap;
+        }
+
+        .btn-compact i {
+            font-size: 0.85rem;
+            margin-right: 3px;
+        }
+
         .d-none-filtro {
             display: none !important;
         }
     </style>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='logo.png') }}">
-    <span class="text-muted small">Versión: {{ app_version }}</span>
 </head>
 <body>
-        <nav class="navbar navbar-dark bg-dark mb-3 shadow-sm">
-            <div class="container-fluid justify-content-start">
-                <span class="navbar-brand mb-0 h1 me-4">Contratos</span>
-                <div class="d-flex align-items-center">
-                    <a href="/logout" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1"><i class="bi bi-box-arrow-right"></i> Salir</a>                
-                    <a href="/propiedades" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1"><i class="bi bi-houses"></i> Galería</a>
-                    <a href="/resumen_propiedades" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1"><i class="bi bi-file-bar-graph"></i> Resumen</a>
-                    <a href="/boveda_contratos" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1"><i class="bi bi-shield-lock"></i> Bóveda PDF</a>
-                    <a href="/ejecutar_envio_automatico_secreto_123" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1"><i class="bi bi-whatsapp"></i> WhatsApp</a>
-                    <a href="/ejecutar_envio_encuestas_secreto_123" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1"><i class="bi bi-file-earmark-text"></i> Encuestas</a>
-                    <a href="/resumen_encuestas" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1"><i class="bi bi-file-bar-graph"></i> Ver Encuestas</a>
-                    <a href="/mensajes" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1" title="Programación de Mensajes Twilio"><i class="bi bi-chat-dots-fill me-1"></i> Mensajes</a>
-                    <a href="/trading" class="btn btn-outline-info btn-sm btn-fijo me-1 ms-1" title="Escaner de Trading & Alertas Twilio"><i class="bi bi-graph-up-arrow me-1"></i> Trading</a>
+    <!-- Navbar Corregido sin desbordamientos -->
+    <nav class="navbar navbar-dark bg-dark mb-4 shadow-sm w-100">
+        <div class="container-fluid px-3">
+            <div class="d-flex align-items-center justify-content-between w-100">
+                <span class="navbar-brand mb-0 h1 fs-6 fw-bold me-2">Contratos</span>
+                
+                <div class="d-flex align-items-center flex-wrap gap-1">
+                    <a href="/logout" class="btn btn-outline-info btn-compact" title="Salir">
+                        <i class="bi bi-box-arrow-right"></i> Salir
+                    </a>                
+                    <a href="/propiedades" class="btn btn-outline-info btn-compact" title="Galería">
+                        <i class="bi bi-houses"></i> Galería
+                    </a>
+                    <a href="/resumen_propiedades" class="btn btn-outline-info btn-compact" title="Resumen">
+                        <i class="bi bi-file-bar-graph"></i> Resumen
+                    </a>
+                    <a href="/boveda_contratos" class="btn btn-outline-info btn-compact" title="Bóveda PDF">
+                        <i class="bi bi-shield-lock"></i> Bóveda PDF
+                    </a>
+                    <a href="/ejecutar_envio_automatico_secreto_123" class="btn btn-outline-info btn-compact" title="WhatsApp">
+                        <i class="bi bi-whatsapp"></i> WhatsApp
+                    </a>
+                    <a href="/ejecutar_envio_encuestas_secreto_123" class="btn btn-outline-info btn-compact" title="Encuestas">
+                        <i class="bi bi-file-earmark-text"></i> Encuestas
+                    </a>
+                    <a href="/resumen_encuestas" class="btn btn-outline-info btn-compact" title="Ver Encuestas">
+                        <i class="bi bi-file-bar-graph"></i> Ver Encuestas
+                    </a>
+                    <a href="/mensajes" class="btn btn-outline-info btn-compact" title="Programación de Mensajes Twilio">
+                        <i class="bi bi-chat-dots-fill"></i> Mensajes
+                    </a>
+                    <a href="/trading" class="btn btn-outline-warning btn-compact" title="Escaner de Trading & Alertas Twilio">
+                        <i class="bi bi-graph-up-arrow"></i> Trading
+                    </a>
+                    <span class="text-muted small ms-2" style="font-size: 0.7rem;">v{{ app_version }}</span>
                 </div>
             </div>
-        </nav>
+        </div>
+    </nav>
 
     <div class="container-fluid px-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -86,8 +119,8 @@
                             </div>
                             
                             <div class="col-md-2">
-                                <label for="foto_propiedad" class="form-label">Foto de la Propiedad:</label>
-                                <input type="file" class="form-control" id="foto_propiedad" name="foto_propiedad" accept="image/*">
+                                <label for="foto_propiedad" class="form-label small fw-bold">Foto de la Propiedad:</label>
+                                <input type="file" class="form-control form-control-sm" id="foto_propiedad" name="foto_propiedad" accept="image/*">
                             </div>
                             <div class="col-md-1">
                                 <label class="small fw-bold">Depósito</label>
@@ -139,7 +172,7 @@
 
                             <div class="col-md-2">
                                 <label class="small fw-bold text-primary">TOTAL INICIAL</label>
-                                <input type="text" id="reg-total-display" class="form-control fw-bold bg-light text-center" readonly value="C$ 0.00">
+                                <input type="text" id="reg-total-display" class="form-control fw-bold bg-light text-center form-control-sm" readonly value="C$ 0.00">
                             </div>
                             
                             <div class="col-md-1 d-flex align-items-end">
@@ -184,9 +217,7 @@
 
                             <td>
                                 {% if emp.get('url_imagen_propiedad') %}
-                                    {# Limpiamos la cadena para obtener solo el nombre del archivo en uploads #}
                                     {% set filename_only = emp.get('url_imagen_propiedad').split('uploads/')[-1] %}
-                                    
                                     <a href="{{ url_for('static', filename='uploads/' + filename_only) }}" target="_blank">
                                         <img src="{{ url_for('static', filename='uploads/' + filename_only) }}" 
                                             alt="Foto Propiedad" 
@@ -204,7 +235,6 @@
                             </td>
 
                             <td class="text-start"> 
-                                <!-- Vista informativa de Cobros (Sin ID duplicado y dinámico) -->
                                 <div class="d-flex align-items-center mb-1">
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" disabled 
@@ -215,7 +245,6 @@
                                     </div>
                                 </div>
 
-                                <!-- Vista informativa de Encuestas (Sin ID duplicado y dinámico) -->
                                 <div class="d-flex align-items-center">
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" disabled 
@@ -355,8 +384,7 @@
                         <label class="text-primary fw-bold">Actualizar Foto de la Propiedad</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-camera"></i></span>
-                            <!-- Cambiamos name="imagen_archivo" por name="foto_propiedad" -->
-                            <input type="file" name="foto_propiedad" id="foto_propiedad" class="form-control" accept="image/*">
+                            <input type="file" name="foto_propiedad" id="foto_propiedad_edit" class="form-control" accept="image/*">
                         </div>
                         <small class="text-muted">Si no seleccionas un archivo, se mantendrá la foto actual.</small>
                     </div>
@@ -415,11 +443,9 @@
             document.getElementById('edit-telefono').value = button.getAttribute('data-telefono');
             document.getElementById('edit-num_contrato').value = button.getAttribute('data-num_contrato');
             
-            // 🟢 Asignar el estado del switch Cobros en el modal
             const copiaActiva = button.getAttribute('data-copia') === 'true';
             document.getElementById('edit-copia-inquilino').checked = copiaActiva;
 
-            // 📊 ASIGNACIÓN CORREGIDA: Sincronizar el estado del switch Encuestas en el modal
             const encuestaActiva = button.getAttribute('data-encuesta-activa') === 'true';
             document.getElementById('edit-encuesta-inquilino').checked = encuestaActiva;
 
