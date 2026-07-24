@@ -1225,6 +1225,7 @@ import yfinance as yf
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.executors.pool import ThreadPoolExecutor
 
 
 app.secret_key = os.getenv('SECRET_KEY', 'tu_clave_secreta_aqui')
@@ -1433,31 +1434,39 @@ def ejecutar_escaner_trading():
 # FUNCIÓN DE ENVÍO DE EMAIL
 # ---------------------------------------------------------
 def enviar_email_smtp(asunto, cuerpo, destino=None):
-    if not SMTP_USER or not SMTP_PASSWORD:
-        print("❌ Error: Credenciales de SMTP no configuradas en el entorno.")
-        return False
+  if not SMTP_USER or not SMTP_PASSWORD:
+    print('❌ Error: Credenciales SMTP no configuradas.')
+    return False
 
-    destinatario = destino.strip() if destino and destino.strip() else EMAIL_DESTINO_DEFAULT
+  destinatario = (
+      destino.strip()
+      if destino and destino.strip()
+      else EMAIL_DESTINO_DEFAULT
+  )
 
-    if not destinatario:
-        print("❌ Error: No se especificó dirección de destino.")
-        return False
+  if not destinatario:
+    print('❌ Error: No hay dirección de destino.')
+    return False
 
-    msg = EmailMessage()
-    msg.set_content(cuerpo)
-    msg['Subject'] = asunto
-    msg['From'] = SMTP_USER
-    msg['To'] = destinatario
+  msg = EmailMessage()
+  msg.set_content(cuerpo)
+  msg['Subject'] = asunto
+  msg['From'] = SMTP_USER
+  msg['To'] = destinatario
 
-    try:
-        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        print(f"❌ Error enviando Email por SMTP: {e}")
-        return False
-
+  try:
+    # Usamos SMTP con puerto 587 y starttls() para compatibilidad con la nube
+    port = int(os.getenv('SMTP_PORT', 587))
+    with smtplib.SMTP(SMTP_SERVER, port, timeout=15) as server:
+      server.ehlo()
+      server.starttls()  # Negocia cifrado TLS seguro
+      server.login(SMTP_USER, SMTP_PASSWORD)
+      server.send_message(msg)
+    print(f'✅ Email enviado exitosamente a {destinatario}')
+    return True
+  except Exception as e:
+    print(f'❌ Error enviando Email por SMTP: {e}')
+    return False
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
     asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
     cuerpo = (f"🚀 OPORTUNIDAD TRADING 24/7\n\n"
@@ -1514,30 +1523,45 @@ def enviar_reporte_estado_trading():
         mensaje = f"🟢 BOT OPERATIVO 24/7\n\nHora (Nicaragua): {hora_fmt}\nEscáner analizando velas 30m continuamente."
         enviar_email_smtp(asunto, mensaje, EMAIL_DESTINO_DEFAULT)
 
-# Inicialización segura del Scheduler para Gunicorn / Render
-scheduler = BackgroundScheduler(daemon=True)
+
+# Configuración de executores con límite explícito de hilos
+executors = {'default': ThreadPoolExecutor(max_workers=10)}
+
+job_defaults = {'coalesce': True, 'max_instances': 1}
+
+scheduler = BackgroundScheduler(
+    executors=executors, job_defaults=job_defaults, daemon=True
+)
+
 
 def inicializar_scheduler():
-    if not scheduler.running:
-        scheduler.add_job(
-            func=tarea_escaneo_automatico_trading,
-            trigger="interval",
-            minutes=5,
-            id="job_trading_automatico",
-            replace_existing=True
-        )
-        scheduler.add_job(
-            func=enviar_reporte_estado_trading,
-            trigger="cron",
-            minute=0,
-            timezone=ZoneInfo("America/Managua"),
-            id="job_status_heartbeat",
-            replace_existing=True
-        )
-        scheduler.start()
-        print("🚀 APScheduler iniciado correctamente en Render.")
+  if not scheduler.running:
+    scheduler.add_job(
+        func=procesar_mensajes_programados,
+        trigger='interval',
+        seconds=60,
+        id='job_mensajes_programados',
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        func=tarea_escaneo_automatico_trading,
+        trigger='interval',
+        minutes=5,
+        id='job_trading_automatico',
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        func=enviar_reporte_estado_trading,
+        trigger='cron',
+        minute=0,
+        timezone=ZoneInfo('America/Managua'),
+        id='job_status_heartbeat',
+        replace_existing=True,
+    )
+    scheduler.start()
+    print('🚀 APScheduler reconfigurado e iniciado correctamente.')
 
-# Arrancar el scheduler al levantar la app
+
 inicializar_scheduler()
 
 if __name__ == '__main__':
