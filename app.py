@@ -1292,64 +1292,143 @@ def calcular_adx(df, period=14):
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
     return dx.rolling(window=period).mean()
 
-def generar_detalles_orden_web(simbolo, nombre, intervalo, periodo, puntos_min):
-    try:
-        df = yf.download(simbolo, period=periodo, interval=intervalo, progress=False, auto_adjust=True, timeout=15)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-            
-        if df is None or df.empty or len(df) < 50:
-            return None
+# =========================================================
+# MÓDULO DE TRADING OPTIMIZADO (DESCARGA EN PARALELO)
+# =========================================================
+def procesar_lote_trading(
+    seleccionados, intervalo, periodo, puntos_min, email_destino
+):
+  """Descarga todos los tickers juntos de una sola vez para evitar timeouts."""
+  try:
+    print(f'🚀 Iniciando escaneo en paralelo para: {seleccionados}')
 
-        df = df.ffill().dropna()
-        precio_actual = float(df['Close'].iloc[-1])
+    # 1. Descargar TODOS los activos seleccionados en UNA sola llamada
+    datos_mkt = yf.download(
+        tickers=seleccionados,
+        period=periodo,
+        interval=intervalo,
+        group_by='ticker',
+        progress=False,
+        auto_adjust=True,
+        timeout=10,
+    )
 
-        # ADX Check
-        adx_serie = calcular_adx(df, period=14)
-        if adx_serie is None or adx_serie.empty or pd.isna(adx_serie.iloc[-1]):
-            return None
-            
-        valor_adx_num = round(float(adx_serie.iloc[-1]), 2)
-        if valor_adx_num < 25:
-            return None
+    alertas_enviadas = 0
 
-        puntos_long = 3
-        puntos_short = 3
+    for ticker in seleccionados:
+      nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
 
-        # SMA 50
-        sma50_serie = df['Close'].rolling(window=50).mean()
-        if sma50_serie is not None and not sma50_serie.empty:
-            sma50 = sma50_serie.iloc[-1]
-            if pd.notna(sma50):
-                if precio_actual > sma50:
-                    puntos_long += 2
-                else:
-                    puntos_short += 2
+      # Extraer DataFrame del ticker
+      if len(seleccionados) > 1:
+        if ticker not in datos_mkt:
+          continue
+        df = datos_mkt[ticker].copy()
+      else:
+        df = datos_mkt.copy()
 
-        # RSI 14
-        rsi_serie = calcular_rsi(df['Close'], period=14)
-        if rsi_serie is not None and not rsi_serie.empty:
-            rsi = rsi_serie.iloc[-1]
-            if pd.notna(rsi) and (40 < rsi < 60):
-                puntos_long += 2
-                puntos_short += 2
+      if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
 
-        puntos_finales = max(puntos_long, puntos_short)
-        accion = "COMPRA/LONG" if puntos_long >= puntos_short else "VENTA/SHORT"
+      df = df.ffill().dropna()
+      if df.empty or len(df) < 50:
+        continue
 
-        if puntos_finales >= puntos_min:
-            return {
-                "ticker": simbolo,
-                "nombre": nombre,
-                "precio": round(precio_actual, 4),
-                "puntos": puntos_finales,
-                "adx_valor": valor_adx_num,
-                "accion": accion
-            }
-    except Exception as e:
-        print(f"⚠️ Error procesando {simbolo}: {e}")
-    return None
+      precio_actual = float(df['Close'].iloc[-1])
 
+      # Indicadores
+      adx_serie = calcular_adx(df, period=14)
+      if (
+          adx_serie is None
+          or adx_serie.empty
+          or pd.isna(adx_serie.iloc[-1])
+      ):
+        continue
+
+      valor_adx_num = round(float(adx_serie.iloc[-1]), 2)
+      if valor_adx_num < 25:
+        continue
+
+      puntos_long = 3
+      puntos_short = 3
+
+      sma50_serie = df['Close'].rolling(window=50).mean()
+      if sma50_serie is not None and not sma50_serie.empty:
+        sma50 = sma50_serie.iloc[-1]
+        if pd.notna(sma50):
+          if precio_actual > sma50:
+            puntos_long += 2
+          else:
+            puntos_short += 2
+
+      rsi_serie = calcular_rsi(df['Close'], period=14)
+      if rsi_serie is not None and not rsi_serie.empty:
+        rsi = rsi_serie.iloc[-1]
+        if pd.notna(rsi) and (40 < rsi < 60):
+          puntos_long += 2
+          puntos_short += 2
+
+      puntos_finales = max(puntos_long, puntos_short)
+      accion = 'COMPRA/LONG' if puntos_long >= puntos_short else 'VENTA/SHORT'
+
+      if puntos_finales >= puntos_min:
+        orden = {
+            'ticker': ticker,
+            'nombre': nombre,
+            'precio': round(precio_actual, 4),
+            'puntos': puntos_finales,
+            'adx_valor': valor_adx_num,
+            'accion': accion,
+        }
+        if enviar_alerta_trading_email(
+            orden, email_destino, puntos_min
+        ):
+          alertas_enviadas += 1
+
+    print(
+        f'🏁 Escaneo completado. Se enviaron {alertas_enviadas} alertas por'
+        ' correo.'
+    )
+
+  except Exception as e:
+    print(f'❌ Error procesando lote de trading: {e}')
+
+
+@app.route('/ejecutar_escaner_trading', methods=['POST'])
+def ejecutar_escaner_trading():
+  if 'user' not in session:
+    return redirect(url_for('login_page'))
+
+  seleccionados = request.form.getlist('instrumentos')
+  intervalo = request.form.get('intervalo', '1h')
+  puntos_min = int(request.form.get('puntos_maximos', 6))
+
+  email_ingresado = request.form.get('email_destino')
+  email_destino = (
+      email_ingresado.strip()
+      if email_ingresado and email_ingresado.strip()
+      else (EMAIL_DESTINO_DEFAULT or '').strip()
+  )
+
+  if not email_destino or not seleccionados:
+    flash('Revisa la selección de instrumentos y correo de destino.', 'warning')
+    return redirect(url_for('vista_trading'))
+
+  periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
+  periodo = periodo_map.get(intervalo, '5d')
+
+  # ⚡ EJECUCIÓN EN SEGUNDO PLANO (THREAD) PARA EVITAR TIMEOUT EN RENDER
+  threading.Thread(
+      target=procesar_lote_trading,
+      args=(seleccionados, intervalo, periodo, puntos_min, email_destino),
+      daemon=True,
+  ).start()
+
+  flash(
+      '🚀 Escaneo iniciado en segundo plano. Si hay oportunidades activas,'
+      ' recibirás la alerta por correo en unos segundos.',
+      'success',
+  )
+  return redirect(url_for('vista_trading'))
 # ---------------------------------------------------------
 # FUNCIÓN DE ENVÍO DE EMAIL
 # ---------------------------------------------------------
@@ -1399,34 +1478,6 @@ def vista_trading():
         return redirect(url_for('login_page'))
     return render_template('trading.html', instrumentos=DICCIONARIO_NOMBRES)
 
-@app.route('/ejecutar_escaner_trading', methods=['POST'])
-def ejecutar_escaner_trading():
-    if 'user' not in session:
-        return redirect(url_for('login_page'))
-    
-    seleccionados = request.form.getlist('instrumentos')
-    intervalo = request.form.get('intervalo', '1h')
-    puntos_min = int(request.form.get('puntos_maximos', 6))
-    
-    email_ingresado = request.form.get('email_destino')
-    email_destino = email_ingresado.strip() if email_ingresado and email_ingresado.strip() else (EMAIL_DESTINO_DEFAULT or "").strip()
-
-    if not email_destino or not seleccionados:
-        flash("Revisa la selección de instrumentos y correo de destino.", "warning")
-        return redirect(url_for('vista_trading'))
-
-    periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
-    periodo = periodo_map.get(intervalo, '5d')
-    alertas_enviadas = 0
-
-    for ticker in seleccionados:
-        nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
-        orden = generar_detalles_orden_web(ticker, nombre, intervalo, periodo, puntos_min)
-        if orden and enviar_alerta_trading_email(orden, email_destino, puntos_min):
-            alertas_enviadas += 1
-
-    flash(f"Escaneo completado. Se enviaron {alertas_enviadas} alertas.", "success" if alertas_enviadas > 0 else "info")
-    return redirect(url_for('vista_trading'))
 
 # ---------------------------------------------------------
 # TAREAS EN SEGUNDO PLANO Y SCHEDULER (PREVENCIÓN DE DUPLICADOS)
@@ -1447,7 +1498,7 @@ def tarea_escaneo_automatico_trading():
             if ultimo_envio and (ahora_dt - ultimo_envio).total_seconds() < 3600:
                 continue
 
-            orden = generar_detalles_orden_web(ticker, nombre, intervalo, periodo, puntos_min)
+            orden = procesar_lote_trading(ticker, nombre, intervalo, periodo, puntos_min)
             if orden and enviar_alerta_trading_email(orden, EMAIL_DESTINO_DEFAULT, puntos_min):
                 ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
                 alertas_enviadas += 1
