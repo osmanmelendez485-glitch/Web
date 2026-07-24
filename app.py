@@ -1400,11 +1400,15 @@ def enviar_whatsapp_twilio_web(orden, destino, puntos_max):
 # ---------------------------------------------------------
 # TAREA BKG: ESCANEO 24/7 EN SEGUNDO PLANO
 # ---------------------------------------------------------
+# Guardar registro de alertas recientes para no repetir en 1 hora
+ALERTAS_ENVIADAS_CACHE = {}
+
 def tarea_escaneo_automatico_trading():
     with app.app_context():
         zona_ni = ZoneInfo("America/Managua")
-        ahora = datetime.now(zona_ni).strftime("%Y-%m-%d %H:%M:%S")
-        print(f"🚀 [{ahora}] Ejecutando escaneo automático 24/7...")
+        ahora_dt = datetime.now(zona_ni)
+        ahora_str = ahora_dt.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"🚀 [{ahora_str}] Ejecutando escaneo automático 24/7...")
         
         intervalo = "30m"
         periodo = "1mo"
@@ -1412,20 +1416,24 @@ def tarea_escaneo_automatico_trading():
         tel_destino = "+50589475863"
         
         todos_los_tickers = list(DICCIONARIO_NOMBRES.keys())
-        alertas_enviadas = 0
 
         for ticker in todos_los_tickers:
+            # Si ya enviamos alerta de este ticker en los últimos 60 minutos, lo saltamos
+            ultimo_envio = ALERTAS_ENVIADAS_CACHE.get(ticker)
+            if ultimo_envio and (ahora_dt - ultimo_envio).total_seconds() < 3600:
+                continue
+
             nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
             orden = generar_detalles_orden_web(ticker, nombre, intervalo, periodo, puntos_min)
             
             if orden:
                 exito = enviar_whatsapp_twilio_web(orden, tel_destino, puntos_min)
                 if exito:
-                    alertas_enviadas += 1
-                    print(f"✅ Alerta 24/7 enviada a WhatsApp para {ticker} ({orden['puntos']} pts)")
+                    ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
+                    print(f"✅ Alerta enviada a WhatsApp para {ticker}")
 
-        print(f"🏁 Escaneo 24/7 finalizado. Alertas enviadas: {alertas_enviadas}")
-
+        print("🏁 Escaneo 24/7 finalizado.")
+        
 # Programar escaneo automático cada 5 minutos
 scheduler.add_job(
     func=tarea_escaneo_automatico_trading,
