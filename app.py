@@ -1726,56 +1726,69 @@ inicializar_scheduler()
 
 #Test en render
 
-EMAIL_EMISOR = os.getenv("EMAIL_EMISOR", "osmanmelendez485@gmail.com")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-EMAIL_RECEPTOR = os.getenv("EMAIL_RECEPTOR", EMAIL_EMISOR)
+# =================================================================
+# LECTURA DIRECTA DE TUS VARIABLES .ENV
+# =================================================================
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
+SMTP_USER = os.getenv("SMTP_USER", "osmanmelendez485@gmail.com")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "kydrbeernvpwftob")
+EMAIL_DESTINO_DEFAULT = os.getenv("EMAIL_DESTINO_DEFAULT", "osmanmelendez485@gmail.com")
 
 
 @app.route("/test_smtp_directo_render")
 def test_smtp_directo_render():
-  logs = ["--- INICIANDO TEST SMTP (PUERTO 587 / STARTTLS) ---"]
+    logs = ["--- INICIANDO TEST CON VARIABLES DE .ENV ---"]
 
-  # 🔧 Forzar IPv4 para evitar "Network is unreachable"
-  old_getaddrinfo = socket.getaddrinfo
+    if not SMTP_PASSWORD:
+        return jsonify({"diagnostico": ["❌ ERROR: La variable SMTP_PASSWORD no está definida."]}), 500
 
-  def new_getaddrinfo(*args, **kwargs):
-    responses = old_getaddrinfo(*args, **kwargs)
-    return [r for r in responses if r[0] == socket.AF_INET]
+    # 🔧 Parche para forzar resolución IPv4 en Render
+    old_getaddrinfo = socket.getaddrinfo
 
-  socket.getaddrinfo = new_getaddrinfo
+    def new_getaddrinfo(*args, **kwargs):
+        responses = old_getaddrinfo(*args, **kwargs)
+        return [r for r in responses if r[0] == socket.AF_INET]
 
-  msg = EmailMessage()
-  msg.set_content(
-      "Prueba de conexión desde Render usando Puerto 587 (STARTTLS)."
-  )
-  msg["Subject"] = "PRUEBA DE SISTEMA - PUERTO 587 OK"
-  msg["From"] = EMAIL_EMISOR
-  msg["To"] = EMAIL_RECEPTOR
+    socket.getaddrinfo = new_getaddrinfo
 
-  try:
-    logs.append("1. Conectando a smtp.gmail.com:587...")
-    # Usamos SMTP estándar en vez de SMTP_SSL y subimos timeout a 30s
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
-      logs.append("2. Iniciando handshake TLS (starttls)...")
-      server.ehlo()
-      server.starttls()
-      server.ehlo()
-      logs.append("3. Autenticando con contraseña de aplicación...")
-      server.login(EMAIL_EMISOR, EMAIL_PASSWORD)
-      logs.append("4. Enviando mensaje...")
-      server.send_message(msg)
-      logs.append("5. Mensaje enviado correctamente.")
+    msg = EmailMessage()
+    msg.set_content(f"Prueba de envío usando variables de entorno (.env).\nUsuario: {SMTP_USER}\nPuerto: {SMTP_PORT}")
+    msg["Subject"] = "PRUEBA DE SISTEMA - CREDENCIALES .ENV OK"
+    msg["From"] = SMTP_USER
+    msg["To"] = EMAIL_DESTINO_DEFAULT
 
-    logs.append("✅ TEST EXITOSO con Puerto 587.")
-    status = 200
+    try:
+        logs.append(f"1. Conectando a {SMTP_SERVER}:{SMTP_PORT}...")
+        
+        # Selección de protocolo según el puerto definido en tu .env
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=25) as server:
+                logs.append("2. Autenticando vía SSL...")
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                logs.append("3. Enviando mensaje...")
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=25) as server:
+                logs.append("2. Iniciando STARTTLS...")
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                logs.append("3. Autenticando con usuario y token...")
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                logs.append("4. Enviando mensaje...")
+                server.send_message(msg)
 
-  except Exception as e:
-    logs.append(f"❌ ERROR EN RENDER: {e}")
-    status = 500
-  finally:
-    socket.getaddrinfo = old_getaddrinfo
+        logs.append(f"✅ TEST EXITOSO: Correo enviado a {EMAIL_DESTINO_DEFAULT}")
+        status = 200
 
-  return jsonify({"diagnostico": logs}), status
+    except Exception as e:
+        logs.append(f"❌ ERROR CON CONFIGURACIÓN DE .ENV: {e}")
+        status = 500
+    finally:
+        socket.getaddrinfo = old_getaddrinfo
+
+    return jsonify({"diagnostico": logs}), status
 
 if __name__ == '__main__':
   app.run(host='0.0.0.0', port=5000)
