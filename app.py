@@ -1726,20 +1726,16 @@ inicializar_scheduler()
 
 #Test en render
 
+EMAIL_EMISOR = os.getenv("EMAIL_EMISOR", "osmanmelendez485@gmail.com")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_RECEPTOR = os.getenv("EMAIL_RECEPTOR", EMAIL_EMISOR)
 
 
-
-# Credentials para el test directo
-EMAIL_TEST_EMISOR = "osmanmelendez485@gmail.com"
-EMAIL_TEST_PASSWORD = "kydr beer nvpw ftob"
-EMAIL_TEST_RECEPTOR = "osmanmelendez485@gmail.com"
-
-
-@app.route('/test_smtp_directo_render')
+@app.route("/test_smtp_directo_render")
 def test_smtp_directo_render():
-  logs = ['--- INICIANDO TEST SMTP DIRECTO DESDE CONTENEDOR RENDER ---']
+  logs = ["--- INICIANDO TEST SMTP (PUERTO 587 / STARTTLS) ---"]
 
-  # 🔧 Parche para forzar IPv4 en la red de Render
+  # 🔧 Forzar IPv4 para evitar "Network is unreachable"
   old_getaddrinfo = socket.getaddrinfo
 
   def new_getaddrinfo(*args, **kwargs):
@@ -1750,36 +1746,36 @@ def test_smtp_directo_render():
 
   msg = EmailMessage()
   msg.set_content(
-      'Esta es una prueba de conexión directa ejecutada desde los servidores de'
-      ' Render.'
+      "Prueba de conexión desde Render usando Puerto 587 (STARTTLS)."
   )
-  msg['Subject'] = 'PRUEBA DE SISTEMA - TEST DIRECTO RENDER OK'
-  msg['From'] = EMAIL_TEST_EMISOR
-  msg['To'] = EMAIL_TEST_RECEPTOR
+  msg["Subject"] = "PRUEBA DE SISTEMA - PUERTO 587 OK"
+  msg["From"] = EMAIL_EMISOR
+  msg["To"] = EMAIL_RECEPTOR
 
   try:
-    logs.append('1. Conectando a smtp.gmail.com puerto 465 (SSL + IPv4)...')
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20) as server:
-      logs.append('2. Autenticando con contraseña de aplicación...')
-      server.login(EMAIL_TEST_EMISOR, EMAIL_TEST_PASSWORD)
-      logs.append('3. Autenticación correcta. Enviando mensaje...')
+    logs.append("1. Conectando a smtp.gmail.com:587...")
+    # Usamos SMTP estándar en vez de SMTP_SSL y subimos timeout a 30s
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
+      logs.append("2. Iniciando handshake TLS (starttls)...")
+      server.ehlo()
+      server.starttls()
+      server.ehlo()
+      logs.append("3. Autenticando con contraseña de aplicación...")
+      server.login(EMAIL_EMISOR, EMAIL_PASSWORD)
+      logs.append("4. Enviando mensaje...")
       server.send_message(msg)
-      logs.append('4. Mensaje enviado exitosamente.')
+      logs.append("5. Mensaje enviado correctamente.")
 
-    logs.append('✅ TEST EXITOSO: El servidor de Render envió el correo.')
+    logs.append("✅ TEST EXITOSO con Puerto 587.")
     status = 200
 
-  except smtplib.SMTPAuthenticationError as auth_err:
-    logs.append(f'❌ ERROR DE AUTENTICACIÓN: {auth_err}')
-    status = 400
   except Exception as e:
-    logs.append(f'❌ ERROR EN RENDER: {e}')
+    logs.append(f"❌ ERROR EN RENDER: {e}")
     status = 500
   finally:
     socket.getaddrinfo = old_getaddrinfo
 
-  return jsonify({'diagnostico': logs}), status
-
+  return jsonify({"diagnostico": logs}), status
 
 if __name__ == '__main__':
   app.run(host='0.0.0.0', port=5000)
