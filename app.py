@@ -1335,46 +1335,6 @@ DICCIONARIO_NOMBRES = {
 }
 
 
-def calcular_rsi(series, period=14):
-  delta = series.diff()
-  gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-  loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-  rs = gain / loss
-  return 100 - (100 / (1 + rs))
-
-
-def calcular_adx(df, period=14):
-  high = df['High']
-  low = df['Low']
-  close = df['Close']
-
-  tr1 = high - low
-  tr2 = (high - close.shift(1)).abs()
-  tr3 = (low - close.shift(1)).abs()
-  tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-  atr = tr.rolling(window=period).mean()
-
-  up_move = high - high.shift(1)
-  down_move = low.shift(1) - low
-
-  plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
-  minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
-
-  plus_di = (
-      100
-      * (pd.Series(plus_dm, index=df.index).rolling(window=period).mean() / atr)
-  )
-  minus_di = (
-      100
-      * (
-          pd.Series(minus_dm, index=df.index).rolling(window=period).mean()
-          / atr
-      )
-  )
-
-  dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
-  return dx.rolling(window=period).mean()
-
 def procesar_lote_trading(
     seleccionados, intervalo, periodo, puntos_min, email_destino
 ):
@@ -1532,6 +1492,45 @@ def procesar_lote_trading(
   except Exception as e:
     print(f'❌ Error procesando lote de trading: {e}')
 
+def calcular_rsi(series, period=14):
+  delta = series.diff()
+  gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+  loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+  rs = gain / loss
+  return 100 - (100 / (1 + rs))
+
+def calcular_adx(df, period=14):
+  high = df['High']
+  low = df['Low']
+  close = df['Close']
+
+  tr1 = high - low
+  tr2 = (high - close.shift(1)).abs()
+  tr3 = (low - close.shift(1)).abs()
+  tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+  atr = tr.rolling(window=period).mean()
+
+  up_move = high - high.shift(1)
+  down_move = low.shift(1) - low
+
+  plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+  minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+
+  plus_di = (
+      100
+      * (pd.Series(plus_dm, index=df.index).rolling(window=period).mean() / atr)
+  )
+  minus_di = (
+      100
+      * (
+          pd.Series(minus_dm, index=df.index).rolling(window=period).mean()
+          / atr
+      )
+  )
+
+  dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
+  return dx.rolling(window=period).mean()
+
 @app.route('/ejecutar_escaner_trading', methods=['POST'])
 def ejecutar_escaner_trading():
   if 'user' not in session:
@@ -1563,9 +1562,6 @@ def ejecutar_escaner_trading():
 
   flash('🚀 Escaneo iniciado en segundo plano.', 'success')
   return redirect(url_for('vista_trading'))
-
-
-
 
 def enviar_email_smtp(asunto, cuerpo, destino=None):
   if not SMTP_USER or not SMTP_PASSWORD:
@@ -1625,16 +1621,13 @@ def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   )
   return enviar_email_smtp(asunto, cuerpo, destino)
 
-
 @app.route('/trading')
 def vista_trading():
   if 'user' not in session:
     return redirect(url_for('login_page'))
   return render_template('trading.html', instrumentos=DICCIONARIO_NOMBRES)
 
-
 ALERTAS_ENVIADAS_CACHE = {}
-
 
 def tarea_escaneo_automatico_trading():
   with app.app_context():
@@ -1658,7 +1651,6 @@ def tarea_escaneo_automatico_trading():
         ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
         alertas_enviadas += 1
 
-
 def enviar_reporte_estado_trading():
   with app.app_context():
     zona_ni = ZoneInfo('America/Managua')
@@ -1671,9 +1663,6 @@ def enviar_reporte_estado_trading():
     )
     enviar_email_smtp(asunto, mensaje, EMAIL_DESTINO_DEFAULT)
 
-# =========================================================
-# CONFIGURACIÓN DEL SCHEDULER UNIFICADO (MENSAJES Y TRADING)
-# =========================================================
 executors = {'default': ThreadPoolExecutor(max_workers=10)}
 job_defaults = {'coalesce': True, 'max_instances': 1}
 
@@ -1683,7 +1672,6 @@ trading_scheduler = BackgroundScheduler(
     timezone=ZoneInfo('America/Managua'),
     daemon=True,
 )
-
 
 def inicializar_scheduler():
   if not trading_scheduler.running:
@@ -1719,23 +1707,14 @@ def inicializar_scheduler():
     trading_scheduler.start()
     print('🚀 Scheduler unificado iniciado con éxito en Render.')
 
-
 # Iniciar el scheduler explícitamente al cargar la app
 inicializar_scheduler()
 
-
-
-#Test en render
-
-# =================================================================
-# LECTURA DIRECTA DE TUS VARIABLES .ENV
-# =================================================================
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
 SMTP_USER = os.getenv("SMTP_USER", "osmanmelendez485@gmail.com")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "kydrbeernvpwftob")
 EMAIL_DESTINO_DEFAULT = os.getenv("EMAIL_DESTINO_DEFAULT", "osmanmelendez485@gmail.com")
-
 
 @app.route("/test_smtp_directo_render")
 def test_smtp_directo_render():
