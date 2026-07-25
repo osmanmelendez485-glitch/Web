@@ -1710,7 +1710,7 @@ def inicializar_scheduler():
         func=enviar_reporte_estado_trading,
         trigger='cron',
         hour='6-18',
-        minute=0,
+        minute=20,
         timezone=ZoneInfo('America/Managua'),
         id='job_status_heartbeat',
         replace_existing=True,
