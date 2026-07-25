@@ -1709,7 +1709,7 @@ def inicializar_scheduler():
     trading_scheduler.add_job(
         func=enviar_reporte_estado_trading,
         trigger='cron',
-        hour='6-13',
+        hour='6-18',
         minute=0,
         timezone=ZoneInfo('America/Managua'),
         id='job_status_heartbeat',
