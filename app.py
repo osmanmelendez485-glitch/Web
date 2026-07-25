@@ -1550,8 +1550,12 @@ def ejecutar_escaner_trading():
   return redirect(url_for('vista_trading'))
 
 
+import socket
+
+
 def enviar_email_smtp(asunto, cuerpo, destino=None):
   if not SMTP_USER or not SMTP_PASSWORD:
+    print("❌ Error: Credenciales SMTP incompletas.")
     return False
 
   destinatario = (
@@ -1564,22 +1568,45 @@ def enviar_email_smtp(asunto, cuerpo, destino=None):
 
   msg = EmailMessage()
   msg.set_content(cuerpo)
-  msg['Subject'] = asunto
-  msg['From'] = SMTP_USER
-  msg['To'] = destinatario
+  msg["Subject"] = asunto
+  msg["From"] = SMTP_USER
+  msg["To"] = destinatario
+
+  # Parche rápido: Forzar resolución por IPv4 para evitar el bloqueo de Render en IPv6
+  old_getaddrinfo = socket.getaddrinfo
+
+  def new_getaddrinfo(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    # Filtramos solo las respuestas IPv4 (AF_INET)
+    return [response for response in responses if response[0] == socket.AF_INET]
 
   try:
-    port = int(os.getenv('SMTP_PORT', 587))
-    with smtplib.SMTP(SMTP_SERVER, port, timeout=15) as server:
-      server.ehlo()
-      server.starttls()
-      server.login(SMTP_USER, SMTP_PASSWORD)
-      server.send_message(msg)
+    socket.getaddrinfo = new_getaddrinfo
+
+    # Puedes usar tanto el puerto 587 (starttls) como el 465 (SMTP_SSL)
+    port = int(os.getenv("SMTP_PORT", 587))
+
+    if port == 465:
+      with smtplib.SMTP_SSL(SMTP_SERVER, port, timeout=15) as server:
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+    else:
+      with smtplib.SMTP(SMTP_SERVER, port, timeout=15) as server:
+        server.ehlo()
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+
+    print(f"✅ Email enviado exitosamente a {destinatario}")
     return True
+
   except Exception as e:
-    print(f'❌ Error enviando Email por SMTP: {e}')
+    print(f"❌ Error enviando Email por SMTP: {e}")
     return False
 
+  finally:
+    # Restauramos la función socket original
+    socket.getaddrinfo = old_getaddrinfo
 
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
