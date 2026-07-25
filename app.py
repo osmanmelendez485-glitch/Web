@@ -1651,7 +1651,7 @@ def tarea_escaneo_automatico_trading():
     zona_ni = ZoneInfo('America/Managua')
     ahora_dt = datetime.now(zona_ni)
 
-    intervalo, periodo, puntos_min = '30m', '1mo', 6
+    intervalo, periodo, puntos_min = '30m', '1mo', 2
     alertas_enviadas = 0
 
     for ticker, nombre in DICCIONARIO_NOMBRES.items():
