@@ -18,3 +18,4 @@ twilio
 APScheduler
 yfinance
 pandas_ta_classic
+socket

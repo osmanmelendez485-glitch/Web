@@ -36,6 +36,7 @@ from twilio.rest import Client
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 import yfinance as yf
+import socket
 
 
 # ---------------------------------------------------------
@@ -1720,6 +1721,65 @@ def inicializar_scheduler():
 
 # Iniciar el scheduler explícitamente al cargar la app
 inicializar_scheduler()
+
+
+
+#Test en render
+
+
+
+
+# Credentials para el test directo
+EMAIL_TEST_EMISOR = "osmanmelendez485@gmail.com"
+EMAIL_TEST_PASSWORD = "kydr beer nvpw ftob"
+EMAIL_TEST_RECEPTOR = "osmanmelendez485@gmail.com"
+
+
+@app.route('/test_smtp_directo_render')
+def test_smtp_directo_render():
+  logs = ['--- INICIANDO TEST SMTP DIRECTO DESDE CONTENEDOR RENDER ---']
+
+  # 🔧 Parche para forzar IPv4 en la red de Render
+  old_getaddrinfo = socket.getaddrinfo
+
+  def new_getaddrinfo(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    return [r for r in responses if r[0] == socket.AF_INET]
+
+  socket.getaddrinfo = new_getaddrinfo
+
+  msg = EmailMessage()
+  msg.set_content(
+      'Esta es una prueba de conexión directa ejecutada desde los servidores de'
+      ' Render.'
+  )
+  msg['Subject'] = 'PRUEBA DE SISTEMA - TEST DIRECTO RENDER OK'
+  msg['From'] = EMAIL_TEST_EMISOR
+  msg['To'] = EMAIL_TEST_RECEPTOR
+
+  try:
+    logs.append('1. Conectando a smtp.gmail.com puerto 465 (SSL + IPv4)...')
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20) as server:
+      logs.append('2. Autenticando con contraseña de aplicación...')
+      server.login(EMAIL_TEST_EMISOR, EMAIL_TEST_PASSWORD)
+      logs.append('3. Autenticación correcta. Enviando mensaje...')
+      server.send_message(msg)
+      logs.append('4. Mensaje enviado exitosamente.')
+
+    logs.append('✅ TEST EXITOSO: El servidor de Render envió el correo.')
+    status = 200
+
+  except smtplib.SMTPAuthenticationError as auth_err:
+    logs.append(f'❌ ERROR DE AUTENTICACIÓN: {auth_err}')
+    status = 400
+  except Exception as e:
+    logs.append(f'❌ ERROR EN RENDER: {e}')
+    status = 500
+  finally:
+    socket.getaddrinfo = old_getaddrinfo
+
+  return jsonify({'diagnostico': logs}), status
+
 
 if __name__ == '__main__':
   app.run(host='0.0.0.0', port=5000)
