@@ -1531,7 +1531,7 @@ def calcular_adx(df, period=14):
   dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
   return dx.rolling(window=period).mean()
 
-@app.route('/ejecutar_escaner_trading', methods=['POST'])
+@app.route('/ejecutar_escaner_trading', methods=['GET', 'POST'])
 def ejecutar_escaner_trading():
   if 'user' not in session:
     return redirect(url_for('login_page'))
@@ -1769,6 +1769,32 @@ def test_smtp_directo_render():
         socket.getaddrinfo = old_getaddrinfo
 
     return jsonify({"diagnostico": logs}), status
+
+
+@app.route('/ejecutar_escaner_directo')
+def ejecutar_escaner_directo():
+  # Toma todos los instrumentos de tu diccionario
+  instrumentos = list(DICCIONARIO_NOMBRES.keys())
+
+  # Ejecuta procesar_lote_trading en segundo plano
+  threading.Thread(
+      target=procesar_lote_trading,
+      args=(
+          instrumentos,
+          '1h',
+          '5d',
+          6,
+          'osmanmelendez485@gmail.com',
+      ),  # Ajusta tus parámetros predeterminados
+      daemon=True,
+  ).start()
+
+  return jsonify({
+      'status': 'success',
+      'mensaje': '🚀 Escaneo manual de trading iniciado en segundo plano.',
+      'instrumentos': instrumentos,
+  }), 200
+
 
 if __name__ == '__main__':
   app.run(host='0.0.0.0', port=5000)
