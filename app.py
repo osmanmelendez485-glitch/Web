@@ -767,7 +767,7 @@ def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
       '📋 *ESTADO DE CUENTA CONSOLIDADO* 📋\n\n'
       f"Hola *{empleado.get('nombre', '')} {empleado.get('apellido', '')}*,\n"
       'Te saluda Osman Meléndez para recordarte los saldos pendientes'
-      f" asociados a tu contrato *{empleado.get('num_contrato', 'N/A')}*:\n\n"
+      f" asociados a tu contrato *{empleado.get('direccion', 'N/A')}*:\n\n"
       f'{bloque_detalles}\n\n'
       f'💰 *TOTAL NETO PENDIENTE*: *C$ {monto_total:,.2f}*\n\n'
       'Por favor omitir este mensaje si ya has realizado tu depósito o'
