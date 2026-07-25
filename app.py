@@ -1259,11 +1259,6 @@ def procesar_mensajes_programados():
           print('🏁 Rango de fechas finalizado. Marcado como Completado.')
 
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(
-    func=procesar_mensajes_programados, trigger='interval', seconds=60
-)
-scheduler.start()
 
 
 @app.route('/mensajes')
@@ -1681,17 +1676,23 @@ def enviar_reporte_estado_trading():
     )
     enviar_email_smtp(asunto, mensaje, EMAIL_DESTINO_DEFAULT)
 
-
+# =========================================================
+# CONFIGURACIÓN DEL SCHEDULER UNIFICADO (MENSAJES Y TRADING)
+# =========================================================
 executors = {'default': ThreadPoolExecutor(max_workers=10)}
 job_defaults = {'coalesce': True, 'max_instances': 1}
 
 trading_scheduler = BackgroundScheduler(
-    executors=executors, job_defaults=job_defaults, daemon=True
+    executors=executors,
+    job_defaults=job_defaults,
+    timezone=ZoneInfo('America/Managua'),
+    daemon=True,
 )
 
 
 def inicializar_scheduler():
   if not trading_scheduler.running:
+    # 1. Procesar mensajes programados (cada 60 segundos)
     trading_scheduler.add_job(
         func=procesar_mensajes_programados,
         trigger='interval',
@@ -1699,6 +1700,8 @@ def inicializar_scheduler():
         id='job_mensajes_programados',
         replace_existing=True,
     )
+
+    # 2. Escaneo automático de trading (cada 5 minutos)
     trading_scheduler.add_job(
         func=tarea_escaneo_automatico_trading,
         trigger='interval',
@@ -1706,7 +1709,8 @@ def inicializar_scheduler():
         id='job_trading_automatico',
         replace_existing=True,
     )
-    # Tarea programada: Reporte cada hora entre 6:00 AM y 1:00 PM (Hora Nicaragua)
+
+    # 3. Reporte Heartbeat: cada hora entre 6:00 AM y 1:00 PM (Nicaragua)
     trading_scheduler.add_job(
         func=enviar_reporte_estado_trading,
         trigger='cron',
@@ -1716,9 +1720,12 @@ def inicializar_scheduler():
         id='job_status_heartbeat',
         replace_existing=True,
     )
+
     trading_scheduler.start()
+    print('🚀 Scheduler unificado iniciado con éxito en Render.')
 
 
+# Iniciar el scheduler explícitamente al cargar la app
 inicializar_scheduler()
 
 if __name__ == '__main__':
