@@ -1651,12 +1651,12 @@ def tarea_escaneo_automatico_trading():
     zona_ni = ZoneInfo('America/Managua')
     ahora_dt = datetime.now(zona_ni)
 
-    intervalo, periodo, puntos_min = '30m', '1mo', 2
+    intervalo, periodo, puntos_min = '30m', '1mo', 6
     alertas_enviadas = 0
 
     for ticker, nombre in DICCIONARIO_NOMBRES.items():
       ultimo_envio = ALERTAS_ENVIADAS_CACHE.get(ticker)
-      if ultimo_envio and (ahora_dt - ultimo_envio).total_seconds() < 60:
+      if ultimo_envio and (ahora_dt - ultimo_envio).total_seconds() < 3600:
         continue
 
       orden = procesar_lote_trading(
