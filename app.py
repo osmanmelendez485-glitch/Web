@@ -1331,6 +1331,7 @@ DICCIONARIO_NOMBRES = {
     'HG=F': 'Cobre',
     'CL=F': 'Petroleo WTI',
     'ES=F': 'S&P 500',
+    'BTC-USD': 'BITCOIN',
 }
 
 
