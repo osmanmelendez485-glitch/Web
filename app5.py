@@ -753,6 +753,7 @@ def inject_version():
 
 
 def enviar_whatsapp_consolidado(empleado, detalles_pagos, monto_total):
+  # 1. Obtención centralizada de credenciales desde TW.env / os.environ
   if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
     print('❌ Error: Credenciales de Twilio no configuradas en entorno.')
     return False
@@ -1629,11 +1630,10 @@ def enviar_reporte_estado_trading():
   with app.app_context():
     zona_ni = ZoneInfo('America/Managua')
     hora_fmt = datetime.now(zona_ni).strftime('%I:%M %p (%d/%m)')
-    asunto = f'🟢 TRADING BOT OPERATIVO EN RENDER ({hora_fmt})'
+    asunto = f'🟢 TRADING BOT OPERATIVO ({hora_fmt})'
     mensaje = (
-        f'🟢 BOT OPERATIVO EN RENDER\n\nHora (Nicaragua): {hora_fmt}\nEl script'
-        ' de trading Trading_ADX_Pro_V3 se encuentra activo y analizando velas'
-        ' continuamente.'
+        f'🟢 BOT OPERATIVO 24/7\n\nHora (Nicaragua): {hora_fmt}\nEscáner'
+        ' analizando velas 30m continuamente.'
     )
     enviar_email_smtp(asunto, mensaje, EMAIL_DESTINO_DEFAULT)
 
@@ -1662,11 +1662,9 @@ def inicializar_scheduler():
         id='job_trading_automatico',
         replace_existing=True,
     )
-    # Tarea programada: Reporte cada hora entre 6:00 AM y 1:00 PM (Hora Nicaragua)
     trading_scheduler.add_job(
         func=enviar_reporte_estado_trading,
         trigger='cron',
-        hour='6-13',
         minute=0,
         timezone=ZoneInfo('America/Managua'),
         id='job_status_heartbeat',
