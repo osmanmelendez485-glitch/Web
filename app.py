@@ -1377,7 +1377,6 @@ def calcular_adx(df, period=14):
   dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
   return dx.rolling(window=period).mean()
 
-
 def procesar_lote_trading(
     seleccionados, intervalo, periodo, puntos_min, email_destino
 ):
@@ -1437,18 +1436,17 @@ def procesar_lote_trading(
         interval=intervalo_str,
         group_by='ticker',
         progress=False,
-        auto_adjust=True,
+        auto_adjust=False,  # Se mantiene intacta la estructura original de columnas
         timeout=15,
     )
 
     if datos_mkt is None or datos_mkt.empty:
       return
 
-    alertas_enviadas = 0
-
     for ticker in tickers_validos:
       nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
 
+      # Manejo seguro para un solo ticker o múltiples tickers
       if len(tickers_validos) > 1:
         if ticker not in datos_mkt:
           continue
@@ -1456,11 +1454,25 @@ def procesar_lote_trading(
       else:
         df = datos_mkt.copy()
 
+      # Corregir MultiIndex si persiste
       if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
+      # Soporte si 'Close' viene como 'Adj Close'
+      if 'Close' not in df.columns and 'Adj Close' in df.columns:
+        df['Close'] = df['Adj Close']
+
       df = df.ffill().dropna()
-      if df.empty or len(df) < 50:
+
+      if (
+          df.empty
+          or 'Close' not in df.columns
+          or 'High' not in df.columns
+          or 'Low' not in df.columns
+      ):
+        continue
+
+      if len(df) < 30:
         continue
 
       precio_actual = float(df['Close'].iloc[-1])
@@ -1481,18 +1493,25 @@ def procesar_lote_trading(
       puntos_short = 3
 
       sma50_serie = df['Close'].rolling(window=50).mean()
-      if sma50_serie is not None and not sma50_serie.empty:
+      if (
+          sma50_serie is not None
+          and not sma50_serie.empty
+          and pd.notna(sma50_serie.iloc[-1])
+      ):
         sma50 = sma50_serie.iloc[-1]
-        if pd.notna(sma50):
-          if precio_actual > sma50:
-            puntos_long += 2
-          else:
-            puntos_short += 2
+        if precio_actual > sma50:
+          puntos_long += 2
+        else:
+          puntos_short += 2
 
       rsi_serie = calcular_rsi(df['Close'], period=14)
-      if rsi_serie is not None and not rsi_serie.empty:
+      if (
+          rsi_serie is not None
+          and not rsi_serie.empty
+          and pd.notna(rsi_serie.iloc[-1])
+      ):
         rsi = rsi_serie.iloc[-1]
-        if pd.notna(rsi) and (40 < rsi < 60):
+        if 40 < rsi < 60:
           puntos_long += 2
           puntos_short += 2
 
@@ -1510,12 +1529,10 @@ def procesar_lote_trading(
             'adx_valor': valor_adx_num,
             'accion': accion,
         }
-        if enviar_alerta_trading_email(orden, email_destino, puntos_min):
-          alertas_enviadas += 1
+        enviar_alerta_trading_email(orden, email_destino, puntos_min)
 
   except Exception as e:
     print(f'❌ Error procesando lote de trading: {e}')
-
 
 @app.route('/ejecutar_escaner_trading', methods=['POST'])
 def ejecutar_escaner_trading():
