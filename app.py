@@ -1301,26 +1301,102 @@ def procesar_lote_trading(
 ):
   """Descarga todos los tickers juntos de una sola vez para evitar timeouts."""
   try:
-    print(f'🚀 Iniciando escaneo en paralelo para: {seleccionados}')
+    # ---------------------------------------------------------
+    # 🛡️ 1. SANITIZACIÓN Y VALIDACIÓN DE PARÁMETROS
+    # ---------------------------------------------------------
+    # Aseguramos que 'seleccionados' sea una lista limpia de tickers válidos
+    if isinstance(seleccionados, str):
+      seleccionados = [seleccionados]
 
-    # 1. Descargar TODOS los activos seleccionados en UNA sola llamada
+    # Lista de tickers limpia (evitamos textos como 'oro (refugio)')
+    tickers_validos = []
+    for item in seleccionados:
+      # Si por error llega algo como 'oro (refugio)', intentamos recuperar el ticker o usamos el valor
+      t = item.strip()
+      tickers_validos.append(t)
+
+    if not tickers_validos:
+      print('⚠️ No hay tickers válidos para escanear.')
+      return
+
+    # Validar y corregir 'intervalo' para Yahoo Finance
+    INTERVALOS_PERMITIDOS = [
+        '1m',
+        '2m',
+        '5m',
+        '15m',
+        '30m',
+        '60m',
+        '90m',
+        '1h',
+        '4h',
+        '1d',
+        '5d',
+        '1wk',
+        '1mo',
+        '3mo',
+    ]
+    intervalo_str = str(intervalo).strip().lower()
+
+    if intervalo_str not in INTERVALOS_PERMITIDOS:
+      print(
+          f"⚠️ Intervalo '{intervalo}' no válido para yfinance. Forzando a"
+          " '1h'."
+      )
+      intervalo_str = '1h'
+
+    # Validar y corregir 'periodo' para Yahoo Finance
+    PERIODOS_PERMITIDOS = [
+        '1d',
+        '5d',
+        '1mo',
+        '3mo',
+        '6mo',
+        '1y',
+        '2y',
+        '5y',
+        '10y',
+        'ytd',
+        'max',
+    ]
+    periodo_str = str(periodo).strip().lower()
+
+    if periodo_str not in PERIODOS_PERMITIDOS:
+      periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
+      periodo_str = periodo_map.get(intervalo_str, '5d')
+
+    print(
+        f'🚀 Iniciando escaneo para: {tickers_validos} | Intervalo:'
+        f' {intervalo_str} | Periodo: {periodo_str}'
+    )
+
+    # ---------------------------------------------------------
+    # 2. DESCARGA EN PARALELO
+    # ---------------------------------------------------------
     datos_mkt = yf.download(
-        tickers=seleccionados,
-        period=periodo,
-        interval=intervalo,
+        tickers=tickers_validos,
+        period=periodo_str,
+        interval=intervalo_str,
         group_by='ticker',
         progress=False,
         auto_adjust=True,
-        timeout=10,
+        timeout=15,
     )
+
+    if datos_mkt is None or datos_mkt.empty:
+      print('⚠️ No se obtuvieron datos del mercado.')
+      return
 
     alertas_enviadas = 0
 
-    for ticker in seleccionados:
+    # ---------------------------------------------------------
+    # 3. PROCESAMIENTO E INDICADORES
+    # ---------------------------------------------------------
+    for ticker in tickers_validos:
       nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
 
-      # Extraer DataFrame del ticker
-      if len(seleccionados) > 1:
+      # Extraer DataFrame del ticker correspondiente
+      if len(tickers_validos) > 1:
         if ticker not in datos_mkt:
           continue
         df = datos_mkt[ticker].copy()
@@ -1336,7 +1412,7 @@ def procesar_lote_trading(
 
       precio_actual = float(df['Close'].iloc[-1])
 
-      # Indicadores
+      # Indicador ADX
       adx_serie = calcular_adx(df, period=14)
       if (
           adx_serie is None
@@ -1352,6 +1428,7 @@ def procesar_lote_trading(
       puntos_long = 3
       puntos_short = 3
 
+      # Indicador SMA 50
       sma50_serie = df['Close'].rolling(window=50).mean()
       if sma50_serie is not None and not sma50_serie.empty:
         sma50 = sma50_serie.iloc[-1]
@@ -1361,6 +1438,7 @@ def procesar_lote_trading(
           else:
             puntos_short += 2
 
+      # Indicador RSI 14
       rsi_serie = calcular_rsi(df['Close'], period=14)
       if rsi_serie is not None and not rsi_serie.empty:
         rsi = rsi_serie.iloc[-1]
@@ -1369,8 +1447,11 @@ def procesar_lote_trading(
           puntos_short += 2
 
       puntos_finales = max(puntos_long, puntos_short)
-      accion = 'COMPRA/LONG' if puntos_long >= puntos_short else 'VENTA/SHORT'
+      accion = (
+          'COMPRA/LONG' if puntos_long >= puntos_short else 'VENTA/SHORT'
+      )
 
+      # Evaluación de alerta y envío de correo
       if puntos_finales >= puntos_min:
         orden = {
             'ticker': ticker,
@@ -1392,7 +1473,6 @@ def procesar_lote_trading(
 
   except Exception as e:
     print(f'❌ Error procesando lote de trading: {e}')
-
 
 @app.route('/ejecutar_escaner_trading', methods=['POST'])
 def ejecutar_escaner_trading():
