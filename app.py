@@ -1645,7 +1645,7 @@ def tarea_escaneo_automatico_trading():
 
     for ticker, nombre in DICCIONARIO_NOMBRES.items():
       ultimo_envio = ALERTAS_ENVIADAS_CACHE.get(ticker)
-      if ultimo_envio and (ahora_dt - ultimo_envio).total_seconds() < 3600:
+      if ultimo_envio and (ahora_dt - ultimo_envio).total_seconds() < 1800:
         continue
 
       orden = procesar_lote_trading(
