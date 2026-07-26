@@ -1510,56 +1510,47 @@ def ejecutar_escaner_trading():
   flash('🚀 Escaneo iniciado en segundo plano.', 'success')
   return redirect(url_for('vista_trading'))
 
+import os
+import smtplib
+from email.message import EmailMessage
+
+
 def enviar_email_smtp(asunto, cuerpo, destino=None):
-  api_key = os.getenv('BREVO_API_KEY')
+  if not SMTP_USER or not SMTP_PASSWORD:
+    print('❌ Error: Credenciales SMTP de Brevo incompletas en .env/Render.')
+    return False
+
   destinatario = (
       destino.strip()
       if (destino and destino.strip())
-      else os.getenv('EMAIL_DESTINO_DEFAULT')
+      else EMAIL_DESTINO_DEFAULT
   )
-  remitente = os.getenv('SMTP_USER', 'tu_correo@gmail.com')
-
-  if not api_key:
-    print('❌ Error: La variable BREVO_API_KEY no está configurada en Render.')
-    return False
-
   if not destinatario:
     print('❌ Error: Sin correo de destino válido.')
     return False
 
-  # Endpoint oficial HTTPS de Brevo (Puerto 443 sin bloqueos de firewall)
-  url = 'https://api.brevo.com/v3/smtp/email'
-
-  headers = {
-      'accept': 'application/json',
-      'api-key': api_key,
-      'content-type': 'application/json',
-  }
-
-  payload = {
-      'sender': {'name': 'Trading Bot', 'email': remitente},
-      'to': [{'email': destinatario}],
-      'subject': asunto,
-      'textContent': cuerpo,
-  }
+  msg = EmailMessage()
+  msg.set_content(cuerpo)
+  msg['Subject'] = asunto
+  msg['From'] = SMTP_USER
+  msg['To'] = destinatario
 
   try:
-    response = requests.post(url, json=payload, headers=headers, timeout=10)
+    # Conexión STARTTLS para smtp-relay.brevo.com en puerto 587
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=20) as server:
+      server.ehlo()
+      server.starttls()  # Encriptación de la conexión
+      server.ehlo()
+      server.login(SMTP_USER, SMTP_PASSWORD)
+      server.send_message(msg)
 
-    if response.status_code in [200, 201]:
-      print(
-          f'✅ Email enviado exitosamente vía Brevo API HTTPS a {destinatario}'
-      )
-      return True
-    else:
-      print(
-          f'❌ Error enviando vía Brevo API ({response.status_code}):'
-          f' {response.text}'
-      )
-      return False
+    print(
+        f'✅ Email enviado exitosamente vía Brevo SMTP Relay a {destinatario}'
+    )
+    return True
 
   except Exception as e:
-    print(f'❌ Error de conexión al enviar vía Brevo API: {e}')
+    print(f'❌ Error enviando Email por Brevo SMTP: {e}')
     return False
 
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
