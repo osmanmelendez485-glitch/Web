@@ -1512,12 +1512,13 @@ def ejecutar_escaner_trading():
 
 import os
 import smtplib
+import socket
 from email.message import EmailMessage
 
 
 def enviar_email_smtp(asunto, cuerpo, destino=None):
   if not SMTP_USER or not SMTP_PASSWORD:
-    print('❌ Error: Credenciales SMTP de Brevo incompletas en .env/Render.')
+    print('❌ Error: Credenciales SMTP de Brevo incompletas.')
     return False
 
   destinatario = (
@@ -1529,6 +1530,16 @@ def enviar_email_smtp(asunto, cuerpo, destino=None):
     print('❌ Error: Sin correo de destino válido.')
     return False
 
+  # --- PARCHE IPv4 OBLIGATORIO PARA RENDER ---
+  old_getaddrinfo = socket.getaddrinfo
+
+  def new_getaddrinfo(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    return [r for r in responses if r[0] == socket.AF_INET]
+
+  socket.getaddrinfo = new_getaddrinfo
+  # -------------------------------------------
+
   msg = EmailMessage()
   msg.set_content(cuerpo)
   msg['Subject'] = asunto
@@ -1536,10 +1547,10 @@ def enviar_email_smtp(asunto, cuerpo, destino=None):
   msg['To'] = destinatario
 
   try:
-    # Conexión STARTTLS para smtp-relay.brevo.com en puerto 587
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=20) as server:
+    # Conexión STARTTLS para Brevo en puerto 587 con forcing IPv4
+    with smtplib.SMTP(SMTP_SERVER, int(SMTP_PORT), timeout=20) as server:
       server.ehlo()
-      server.starttls()  # Encriptación de la conexión
+      server.starttls()
       server.ehlo()
       server.login(SMTP_USER, SMTP_PASSWORD)
       server.send_message(msg)
@@ -1552,6 +1563,9 @@ def enviar_email_smtp(asunto, cuerpo, destino=None):
   except Exception as e:
     print(f'❌ Error enviando Email por Brevo SMTP: {e}')
     return False
+  finally:
+    # Restaurar la configuración original de sockets
+    socket.getaddrinfo = old_getaddrinfo
 
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
