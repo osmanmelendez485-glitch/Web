@@ -1509,6 +1509,8 @@ def ejecutar_escaner_trading():
   flash('🚀 Escaneo iniciado en segundo plano.', 'success')
   return redirect(url_for('vista_trading'))
 
+import socket  # Asegúrate de tener importado socket al inicio del archivo
+
 
 def enviar_email_smtp(asunto, cuerpo, destino=None):
   if not SMTP_USER or not SMTP_PASSWORD:
@@ -1522,6 +1524,16 @@ def enviar_email_smtp(asunto, cuerpo, destino=None):
   )
   if not destinatario:
     return False
+
+  # --- FORZAR RESOLUCIÓN IPv4 EN RENDER ---
+  old_getaddrinfo = socket.getaddrinfo
+
+  def new_getaddrinfo(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    return [r for r in responses if r[0] == socket.AF_INET]
+
+  socket.getaddrinfo = new_getaddrinfo
+  # ----------------------------------------
 
   msg = EmailMessage()
   msg.set_content(cuerpo)
@@ -1552,7 +1564,9 @@ def enviar_email_smtp(asunto, cuerpo, destino=None):
   except Exception as e:
     print(f'❌ Error enviando Email por SMTP: {e}')
     return False
-
+  finally:
+    # Restaurar la función socket original
+    socket.getaddrinfo = old_getaddrinfo
 
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
