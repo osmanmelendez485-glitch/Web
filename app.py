@@ -1365,54 +1365,82 @@ def enviar_whatsapp_twilio(mensaje):
 
 # --- FUNCIÓN DE ANÁLISIS INDIVIDUAL POR TICKER ---
 def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
-    nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
-    try:
-        df = yf.download(ticker, period=periodo, interval=intervalo, progress=False)
-        if df.empty or len(df) < 30:
-            return None
+  nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
+  try:
+    df = yf.download(
+        ticker, period=periodo, interval=intervalo, progress=False
+    )
+    if df.empty or len(df) < 14:
+      return None
 
-        # Limpieza de MultiIndex si yfinance devuelve tuplas en columnas
-        if isinstance(df.columns, list) or getattr(df.columns, 'nlevels', 1) > 1:
-            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+    if isinstance(df.columns, list) or getattr(df.columns, 'nlevels', 1) > 1:
+      df.columns = [
+          col[0] if isinstance(col, tuple) else col for col in df.columns
+      ]
 
-        df['ADX'] = calcular_adx(df)
-        df['RSI'] = calcular_rsi(df['Close'])
+    df['ADX'] = calcular_adx(df)
+    df['RSI'] = calcular_rsi(df['Close'])
 
-        ultima_vela = df.iloc[-1]
-        precio_actual = round(float(ultima_vela['Close']), 4)
-        adx_val = round(float(ultima_vela['ADX']), 2) if 'ADX' in df.columns and not pd.isna(ultima_vela['ADX']) else 0.0
-        rsi_val = round(float(ultima_vela['RSI']), 2) if 'RSI' in df.columns and not pd.isna(ultima_vela['RSI']) else 50.0
+    ultima_vela = df.iloc[-1]
+    vela_anterior = df.iloc[-2]
 
-        # Lógica de Puntuación
-        puntos = 0
-        accion = "WAIT"
+    precio_actual = round(float(ultima_vela['Close']), 2)
+    precio_previo = round(float(vela_anterior['Close']), 2)
 
-        if adx_val >= 25:
-            puntos += 3
-        elif adx_val >= 15:
-            puntos += 1
+    # Variación porcentual de la última vela
+    variacion_pct = round(
+        ((precio_actual - precio_previo) / precio_previo) * 100, 2
+    )
+    eje_var = f"+{variacion_pct}%" if variacion_pct >= 0 else f"{variacion_pct}%"
 
-        if rsi_val <= 30:
-            puntos += 3
-            accion = "BUY (Sobrevendido)"
-        elif rsi_val >= 70:
-            puntos += 3
-            accion = "SELL (Sobrecomprado)"
-        else:
-            puntos += 1
+    adx_val = (
+        round(float(ultima_vela['ADX']), 2)
+        if 'ADX' in df.columns and not pd.isna(ultima_vela['ADX'])
+        else 0.0
+    )
+    rsi_val = (
+        round(float(ultima_vela['RSI']), 2)
+        if 'RSI' in df.columns and not pd.isna(ultima_vela['RSI'])
+        else 50.0
+    )
 
-        return {
-            'ticker': ticker,
-            'nombre': nombre,
-            'precio': precio_actual,
-            'adx_valor': adx_val,
-            'rsi_valor': rsi_val,
-            'puntos': puntos,
-            'accion': accion
-        }
-    except Exception as e:
-        print(f"⚠️ Error procesando datos para {ticker}: {e}")
-        return None
+    # Rango reciente (Mínimo y Máximo del período evaluado)
+    min_reciente = round(float(df['Low'].min()), 2)
+    max_reciente = round(float(df['High'].max()), 2)
+
+    # Lógica de Puntuación y Acción
+    puntos = 0
+    accion = 'WAIT'
+
+    if adx_val >= 25:
+      puntos += 3
+    elif adx_val >= 15:
+      puntos += 1
+
+    if rsi_val <= 30:
+      puntos += 3
+      accion = '🟢 COMPRA (Sobrevendido)'
+    elif rsi_val >= 70:
+      puntos += 3
+      accion = '🔴 VENTA (Sobrecomprado)'
+    else:
+      puntos += 1
+
+    return {
+        'ticker': ticker,
+        'nombre': nombre,
+        'precio': precio_actual,
+        'variacion': eje_var,
+        'adx_valor': adx_val,
+        'rsi_valor': rsi_val,
+        'min_reciente': min_reciente,
+        'max_reciente': max_reciente,
+        'puntos': puntos,
+        'accion': accion,
+    }
+  except Exception as e:
+    print(f'⚠️ Error procesando datos para {ticker}: {e}')
+    return None
 
 # --- PROCESAMIENTO DE LOTE CON AUDITORÍA EN TERMINAL Y ENVÍO ÚNICO ---
 def procesar_lote_trading(instrumentos, intervalo, periodo, puntos_min, destino=None):
@@ -1439,9 +1467,12 @@ def procesar_lote_trading(instrumentos, intervalo, periodo, puntos_min, destino=
             if puntos_obtenidos >= puntos_min:
                 print(f"   👉 ¡CUMPLE CRITERIO! Agregado a la lista de notificación.")
                 linea = (
-                    f"🚀 *{orden['nombre']}* ({orden['ticker']})\n"
-                    f"   • Acción: {orden['accion']} | Precio: ${orden['precio']}\n"
-                    f"   • ADX: {orden['adx_valor']} 🔥 | Puntuación: {puntos_obtenidos}/{puntos_min}"
+                    f"🚀 *{orden['nombre']}* (`{orden['ticker']}`)\n"
+                    f"   • *Acción:* {orden['accion']}\n"
+                    f"   • *Precio:* ${orden['precio']} ({orden['variacion']})\n"
+                    f"   • *ADX:* {orden['adx_valor']} 🔥 | *RSI:* {orden['rsi_valor']}\n"
+                    f"   • *Rango:* Mín ${orden['min_reciente']} | Máx ${orden['max_reciente']}\n"
+                    f"   • *Puntuación:* {puntos_obtenidos}/{puntos_min}"
                 )
                 reporte_lineas.append(linea)
             else:
