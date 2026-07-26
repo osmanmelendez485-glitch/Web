@@ -1396,8 +1396,8 @@ def procesar_lote_trading(
         continue
 
       valor_adx_num = round(float(adx_serie.iloc[-1]), 2)
-      if valor_adx_num < 15:
-        print(f'ℹ️ {nombre}: ADX ({valor_adx_num}) < 25. Omitido.')
+      if valor_adx_num < 10:
+        print(f'ℹ️ {nombre}: ADX ({valor_adx_num}) < 10. Omitido.')
         continue
 
       # 2. Puntuación limpia de Estrategia
