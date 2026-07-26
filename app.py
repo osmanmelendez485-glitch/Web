@@ -37,6 +37,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 import yfinance as yf
 import socket
+import requests
 
 
 # ---------------------------------------------------------
@@ -1510,53 +1511,56 @@ def ejecutar_escaner_trading():
   return redirect(url_for('vista_trading'))
 
 def enviar_email_smtp(asunto, cuerpo, destino=None):
-    if not SMTP_USER or not SMTP_PASSWORD:
-        print("❌ Error: Credenciales SMTP incompletas.")
-        return False
+  api_key = os.getenv('BREVO_API_KEY')
+  destinatario = (
+      destino.strip()
+      if (destino and destino.strip())
+      else os.getenv('EMAIL_DESTINO_DEFAULT')
+  )
+  remitente = os.getenv('SMTP_USER', 'tu_correo@gmail.com')
 
-    destinatario = destino.strip() if (destino and destino.strip()) else EMAIL_DESTINO_DEFAULT
-    if not destinatario:
-        return False
+  if not api_key:
+    print('❌ Error: La variable BREVO_API_KEY no está configurada en Render.')
+    return False
 
-    # --- PARCHE FORZADO IPv4 PARA RENDER ---
-    old_getaddrinfo = socket.getaddrinfo
-    def new_getaddrinfo(*args, **kwargs):
-        responses = old_getaddrinfo(*args, **kwargs)
-        return [r for r in responses if r[0] == socket.AF_INET]
-    socket.getaddrinfo = new_getaddrinfo
-    # ----------------------------------------
+  if not destinatario:
+    print('❌ Error: Sin correo de destino válido.')
+    return False
 
-    msg = EmailMessage()
-    msg.set_content(cuerpo)
-    msg['Subject'] = asunto
-    msg['From'] = SMTP_USER
-    msg['To'] = destinatario
+  # Endpoint oficial HTTPS de Brevo (Puerto 443 sin bloqueos de firewall)
+  url = 'https://api.brevo.com/v3/smtp/email'
 
-    try:
-        # En Render usamos 587 con STARTTLS para evitar bloqueos
-        puerto = int(SMTP_PORT)
-        
-        if puerto == 465:
-            with smtplib.SMTP_SSL(SMTP_SERVER, puerto, timeout=15) as server:
-                server.login(SMTP_USER, SMTP_PASSWORD)
-                server.send_message(msg)
-        else:
-            # Puerto 587 (Recomendado para Render)
-            with smtplib.SMTP(SMTP_SERVER, puerto if puerto != 465 else 587, timeout=15) as server:
-                server.ehlo()
-                server.starttls()
-                server.ehlo()
-                server.login(SMTP_USER, SMTP_PASSWORD)
-                server.send_message(msg)
+  headers = {
+      'accept': 'application/json',
+      'api-key': api_key,
+      'content-type': 'application/json',
+  }
 
-        print(f"✅ Email enviado exitosamente a {destinatario}")
-        return True
+  payload = {
+      'sender': {'name': 'Trading Bot', 'email': remitente},
+      'to': [{'email': destinatario}],
+      'subject': asunto,
+      'textContent': cuerpo,
+  }
 
-    except Exception as e:
-        print(f"❌ Error enviando Email por SMTP: {e}")
-        return False
-    finally:
-        socket.getaddrinfo = old_getaddrinfo
+  try:
+    response = requests.post(url, json=payload, headers=headers, timeout=10)
+
+    if response.status_code in [200, 201]:
+      print(
+          f'✅ Email enviado exitosamente vía Brevo API HTTPS a {destinatario}'
+      )
+      return True
+    else:
+      print(
+          f'❌ Error enviando vía Brevo API ({response.status_code}):'
+          f' {response.text}'
+      )
+      return False
+
+  except Exception as e:
+    print(f'❌ Error de conexión al enviar vía Brevo API: {e}')
+    return False
 
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
