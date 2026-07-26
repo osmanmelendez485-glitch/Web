@@ -1261,9 +1261,6 @@ def procesar_mensajes_programados():
           )
           print('🏁 Rango de fechas finalizado. Marcado como Completado.')
 
-
-
-
 @app.route('/mensajes')
 def vista_mensajes():
   if 'user' not in session:
@@ -1274,7 +1271,6 @@ def vista_mensajes():
       dict(doc.to_dict(), id=doc.id) for doc in programaciones_ref
   ]
   return render_template('mensajes.html', programaciones=programaciones)
-
 
 @app.route('/guardar_programacion_mensaje', methods=['POST'])
 def guardar_programacion_mensaje():
@@ -1295,7 +1291,6 @@ def guardar_programacion_mensaje():
   flash('Programación guardada exitosamente.', 'success')
   return redirect(url_for('vista_mensajes'))
 
-
 @app.route('/eliminar_programacion/<id_prog>')
 def eliminar_programacion(id_prog):
   if 'user' not in session:
@@ -1307,23 +1302,6 @@ def eliminar_programacion(id_prog):
 
 # --- TRADING ---
 
-SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com').strip()
-SMTP_PORT = int(os.getenv('SMTP_PORT', 465))
-
-raw_user = os.getenv('SMTP_USER', '')
-SMTP_USER = raw_user.strip().strip('"').strip("'") if raw_user else None
-
-raw_pass = os.getenv('SMTP_PASSWORD', '')
-SMTP_PASSWORD = (
-    raw_pass.strip().replace(' ', '').strip('"').strip("'")
-    if raw_pass
-    else None
-)
-
-raw_dest = os.getenv('EMAIL_DESTINO_DEFAULT', '')
-EMAIL_DESTINO_DEFAULT = (
-    raw_dest.strip().strip('"').strip("'") if raw_dest else SMTP_USER
-)
 
 DICCIONARIO_NOMBRES = {
     'GC=F': 'Oro (Refugio)',
@@ -1335,285 +1313,235 @@ DICCIONARIO_NOMBRES = {
 }
 
 
-def procesar_lote_trading(
-    seleccionados, intervalo, periodo, puntos_min, email_destino
-):
-  try:
-    if isinstance(seleccionados, str):
-      seleccionados = [seleccionados]
-
-    tickers_validos = [item.strip() for item in seleccionados if item.strip()]
-
-    if not tickers_validos:
-      print('⚠️ No hay tickers válidos para escanear.')
-      return None
-
-    # Descarga directa vía yfinance
-    datos_mkt = yf.download(
-        tickers=tickers_validos,
-        period=periodo,
-        interval=intervalo,
-        group_by='ticker',
-        progress=False,
-        auto_adjust=False,
-        timeout=15,
-    )
-
-    if datos_mkt is None or datos_mkt.empty:
-      return None
-
-    ultima_orden = None
-
-    for ticker in tickers_validos:
-      nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
-
-      if len(tickers_validos) > 1:
-        if ticker not in datos_mkt:
-          continue
-        df = datos_mkt[ticker].copy()
-      else:
-        df = datos_mkt.copy()
-
-      if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-
-      if 'Close' not in df.columns and 'Adj Close' in df.columns:
-        df['Close'] = df['Adj Close']
-
-      df = df.ffill().dropna()
-
-      if len(df) < 30:
-        continue
-
-      precio_actual = float(df['Close'].iloc[-1])
-
-      # 1. ADX Filtro principal (Tendencia)
-      adx_serie = calcular_adx(df, period=14)
-      if (
-          adx_serie is None
-          or adx_serie.empty
-          or pd.isna(adx_serie.iloc[-1])
-      ):
-        continue
-
-      valor_adx_num = round(float(adx_serie.iloc[-1]), 2)
-      if valor_adx_num < 10:
-        print(f'ℹ️ {nombre}: ADX ({valor_adx_num}) < 10. Omitido.')
-        continue
-
-      # 2. Puntuación limpia de Estrategia
-      puntos_long = 0
-      puntos_short = 0
-
-      # Tendencia SMA 50
-      sma50_serie = df['Close'].rolling(window=50).mean()
-      if (
-          sma50_serie is not None
-          and not sma50_serie.empty
-          and pd.notna(sma50_serie.iloc[-1])
-      ):
-        sma50 = float(sma50_serie.iloc[-1])
-        if precio_actual > sma50:
-          puntos_long += 3
-        else:
-          puntos_short += 3
-
-      # Oscilador RSI
-      rsi_serie = calcular_rsi(df['Close'], period=14)
-      if (
-          rsi_serie is not None
-          and not rsi_serie.empty
-          and pd.notna(rsi_serie.iloc[-1])
-      ):
-        rsi = float(rsi_serie.iloc[-1])
-        if rsi > 50:
-          puntos_long += 3
-        elif rsi <= 50:
-          puntos_short += 3
-
-      puntos_finales = max(puntos_long, puntos_short)
-      accion = (
-          'COMPRA/LONG' if puntos_long >= puntos_short else 'VENTA/SHORT'
-      )
-
-      if puntos_finales >= puntos_min:
-        orden = {
-            'ticker': ticker,
-            'nombre': nombre,
-            'precio': round(precio_actual, 4),
-            'puntos': puntos_finales,
-            'adx_valor': valor_adx_num,
-            'accion': accion,
-        }
-        ultima_orden = orden
-        enviar_alerta_trading_email(
-            orden, destino=email_destino, puntos_max=puntos_min
-        )
-
-    return ultima_orden
-
-  except Exception as e:
-    print(f'❌ Error procesando lote de trading: {e}')
-    return None
 
 # --- INDICADORES TÉCNICOS OPTIMIZADOS ---
 def calcular_rsi(series, period=14):
-  delta = series.diff()
-  gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-  loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-  rs = gain / loss
-  return 100 - (100 / (1 + rs))
-
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
 
 def calcular_adx(df, period=14):
-  """Calcula el ADX utilizando pandas_ta_classic de forma nativa y robusta."""
-  try:
-    adx_df = ta.adx(df['High'], df['Low'], df['Close'], length=period)
-    if adx_df is not None and not adx_df.empty:
-      # pandas_ta nombra la columna principal como 'ADX_14'
-      col_adx = [col for col in adx_df.columns if col.startswith('ADX_')][0]
-      return adx_df[col_adx]
-  except Exception as e:
-    print(f'⚠️ Error calculando ADX con pandas_ta: {e}')
+    """Calcula el ADX utilizando pandas_ta_classic de forma nativa y robusta."""
+    try:
+        adx_df = ta.adx(df['High'], df['Low'], df['Close'], length=period)
+        if adx_df is not None and not adx_df.empty:
+            col_adx = [col for col in adx_df.columns if col.startswith('ADX_')][0]
+            return adx_df[col_adx]
+    except Exception as e:
+        print(f"⚠️ Error calculando ADX con pandas_ta: {e}")
+    return None
 
-  return None
+# --- MÓDULO DE ENVÍO WHATSAPP VÍA TWILIO (REST API HTTPS PUERTO 443) ---
+def enviar_whatsapp_twilio(mensaje):
+    account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+    auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+    from_whatsapp = os.getenv('TWILIO_WHATSAPP_NUMBER')  # ej: whatsapp:+14155238886
+    to_whatsapp = os.getenv('MI_WHATSAPP_NUMBER')        # ej: whatsapp:+505XXXXXXXX
 
+    if not account_sid or not auth_token or not from_whatsapp or not to_whatsapp:
+        print("❌ Error: Variables de entorno de Twilio/WhatsApp no configuradas en el entorno.")
+        return False
+
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    payload = {
+        'From': from_whatsapp,
+        'To': to_whatsapp,
+        'Body': mensaje
+    }
+
+    try:
+        response = requests.post(url, data=payload, auth=(account_sid, auth_token), timeout=12)
+        if response.status_code in [200, 201]:
+            print("✅ Alerta unificada de WhatsApp enviada exitosamente vía Twilio.")
+            return True
+        else:
+            print(f"❌ Error enviando WhatsApp ({response.status_code}): {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Error de conexión al enviar WhatsApp: {e}")
+        return False
+
+# --- FUNCIÓN DE ANÁLISIS INDIVIDUAL POR TICKER ---
+def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
+    nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
+    try:
+        df = yf.download(ticker, period=periodo, interval=intervalo, progress=False)
+        if df.empty or len(df) < 30:
+            return None
+
+        # Limpieza de MultiIndex si yfinance devuelve tuplas en columnas
+        if isinstance(df.columns, list) or getattr(df.columns, 'nlevels', 1) > 1:
+            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+
+        df['ADX'] = calcular_adx(df)
+        df['RSI'] = calcular_rsi(df['Close'])
+
+        ultima_vela = df.iloc[-1]
+        precio_actual = round(float(ultima_vela['Close']), 4)
+        adx_val = round(float(ultima_vela['ADX']), 2) if 'ADX' in df.columns and not pd.isna(ultima_vela['ADX']) else 0.0
+        rsi_val = round(float(ultima_vela['RSI']), 2) if 'RSI' in df.columns and not pd.isna(ultima_vela['RSI']) else 50.0
+
+        # Lógica de Puntuación
+        puntos = 0
+        accion = "WAIT"
+
+        if adx_val >= 25:
+            puntos += 3
+        elif adx_val >= 15:
+            puntos += 1
+
+        if rsi_val <= 30:
+            puntos += 3
+            accion = "BUY (Sobrevendido)"
+        elif rsi_val >= 70:
+            puntos += 3
+            accion = "SELL (Sobrecomprado)"
+        else:
+            puntos += 1
+
+        return {
+            'ticker': ticker,
+            'nombre': nombre,
+            'precio': precio_actual,
+            'adx_valor': adx_val,
+            'rsi_valor': rsi_val,
+            'puntos': puntos,
+            'accion': accion
+        }
+    except Exception as e:
+        print(f"⚠️ Error procesando datos para {ticker}: {e}")
+        return None
+
+# --- PROCESAMIENTO DE LOTE CON AUDITORÍA EN TERMINAL Y ENVÍO ÚNICO ---
+def procesar_lote_trading(instrumentos, intervalo, periodo, puntos_min, destino=None):
+    if isinstance(instrumentos, str):
+        instrumentos = [instrumentos]
+
+    reporte_lineas = []
+
+    print(f"\n🔍 --- INICIANDO ESCANEO DE {len(instrumentos)} INSTRUMENTOS ---")
+    print(f"⚙️ Filtros: Intervalo={intervalo} | Puntos Mínimos Requeridos={puntos_min}")
+
+    for ticker in instrumentos:
+        orden = analizar_ticker_individual(ticker, intervalo, periodo, puntos_min)
+
+        if orden:
+            puntos_obtenidos = orden['puntos']
+            adx_val = orden['adx_valor']
+            accion = orden['accion']
+
+            # 📊 MOSTRAR EN CONSOLA / TERMINAL
+            print(f"🔹 [{ticker}] {orden['nombre']} | ADX: {adx_val} | RSI: {orden['rsi_valor']} | Puntos: {puntos_obtenidos}/{puntos_min} | Acción: {accion}")
+
+            # Agregar solo si cumple el filtro
+            if puntos_obtenidos >= puntos_min:
+                print(f"   👉 ¡CUMPLE CRITERIO! Agregado a la lista de notificación.")
+                linea = (
+                    f"🚀 *{orden['nombre']}* ({orden['ticker']})\n"
+                    f"   • Acción: {orden['accion']} | Precio: ${orden['precio']}\n"
+                    f"   • ADX: {orden['adx_valor']} 🔥 | Puntuación: {puntos_obtenidos}/{puntos_min}"
+                )
+                reporte_lineas.append(linea)
+            else:
+                print(f"   ❌ Omitido: Puntuación insuficiente ({puntos_obtenidos}/{puntos_min}).")
+        else:
+            print(f"⚠️ [{ticker}] No se pudieron calcular indicadores.")
+
+    print("--------------------------------------------------")
+
+    # ENVÍO CONSOLIDADO A WHATSAPP
+    if reporte_lineas:
+        print(f"🚀 Enviando mensaje unificado con {len(reporte_lineas)} oportunidad(es) a WhatsApp...")
+        encabezado = "📊 *REPORTE CONSOLIDADO TRADING BOT*\n"
+        encabezado += "-----------------------------------------\n\n"
+        mensaje_unificado = encabezado + "\n\n".join(reporte_lineas)
+        enviar_whatsapp_twilio(mensaje_unificado)
+    else:
+        print("ℹ️ Escaneo completado: Ningún instrumento alcanzó los puntos mínimos para enviar por WhatsApp.\n")
+
+# --- RUTAS FLASK ---
 @app.route('/ejecutar_escaner_trading', methods=['GET', 'POST'])
 def ejecutar_escaner_trading():
-  if 'user' not in session:
-    return redirect(url_for('login_page'))
+    if 'user' not in session:
+        return redirect(url_for('login_page'))
 
-  seleccionados = request.form.getlist('instrumentos')
-  intervalo = request.form.get('intervalo', '1h')
-  puntos_min = int(request.form.get('puntos_maximos', 2))
+    seleccionados = request.form.getlist('instrumentos')
+    intervalo = request.form.get('intervalo', '1h')
+    puntos_min = int(request.form.get('puntos_maximos', 6))
 
-  email_ingresado = request.form.get('email_destino')
-  email_destino = (
-      email_ingresado.strip()
-      if email_ingresado and email_ingresado.strip()
-      else (EMAIL_DESTINO_DEFAULT or '').strip()
-  )
+    if not seleccionados:
+        flash('Revisa la selección de instrumentos.', 'warning')
+        return redirect(url_for('vista_trading'))
 
-  if not email_destino or not seleccionados:
-    flash('Revisa la selección de instrumentos y correo de destino.', 'warning')
+    periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
+    periodo = periodo_map.get(intervalo, '5d')
+
+    threading.Thread(
+        target=procesar_lote_trading,
+        args=(seleccionados, intervalo, periodo, puntos_min),
+        daemon=True
+    ).start()
+
+    flash('🚀 Escaneo iniciado en segundo plano. Recibirás un resumen consolidado por WhatsApp.', 'success')
     return redirect(url_for('vista_trading'))
-
-  periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
-  periodo = periodo_map.get(intervalo, '5d')
-
-  threading.Thread(
-      target=procesar_lote_trading,
-      args=(seleccionados, intervalo, periodo, puntos_min, email_destino),
-      daemon=True,
-  ).start()
-
-  flash('🚀 Escaneo iniciado en segundo plano.', 'success')
-  return redirect(url_for('vista_trading'))
-
-
-def enviar_email_smtp(asunto, cuerpo, destino=None):
-  api_key = os.getenv('BREVO_API_KEY')
-  destinatario = (
-      destino.strip()
-      if (destino and destino.strip())
-      else os.getenv('EMAIL_DESTINO_DEFAULT')
-  )
-  remitente = os.getenv('SMTP_USER')
-
-  if not api_key:
-    print('❌ Error: BREVO_API_KEY no configurada en el entorno.')
-    return False
-
-  if not destinatario:
-    print('❌ Error: Sin correo de destino válido.')
-    return False
-
-  url = 'https://api.brevo.com/v3/smtp/email'
-
-  headers = {
-      'accept': 'application/json',
-      'api-key': api_key,
-      'content-type': 'application/json',
-  }
-
-  payload = {
-      'sender': {'name': 'Trading Bot', 'email': remitente},
-      'to': [{'email': destinatario}],
-      'subject': asunto,
-      'textContent': cuerpo,
-  }
-
-  try:
-    response = requests.post(url, json=payload, headers=headers, timeout=12)
-
-    if response.status_code in [200, 201]:
-      print(
-          f'✅ Email enviado exitosamente vía Brevo API HTTPS a {destinatario}'
-      )
-      return True
-    else:
-      print(
-          f'❌ Error enviando vía Brevo API ({response.status_code}):'
-          f' {response.text}'
-      )
-      return False
-
-  except Exception as e:
-    print(f'❌ Error de conexión al enviar vía Brevo API: {e}')
-    return False
-
-def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
-  asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
-  cuerpo = (
-      f"🚀 OPORTUNIDAD TRADING 24/7\n\nInstrumento: {orden['nombre']}"
-      f" ({orden['ticker']})\nAcción: {orden['accion']}\nPrecio Actual:"
-      f" {orden['precio']}\nADX: {orden['adx_valor']} 🔥\nPuntuación:"
-      f" {orden['puntos']}/{puntos_max}"
-  )
-  return enviar_email_smtp(asunto, cuerpo, destino)
-
 
 @app.route('/trading')
 def vista_trading():
-  if 'user' not in session:
-    return redirect(url_for('login_page'))
-  return render_template('trading.html', instrumentos=DICCIONARIO_NOMBRES)
+    if 'user' not in session:
+        return redirect(url_for('login_page'))
+    return render_template('trading.html', instrumentos=DICCIONARIO_NOMBRES)
 
+@app.route('/ejecutar_escaner_directo')
+def ejecutar_escaner_directo():
+    instrumentos = list(DICCIONARIO_NOMBRES.keys())
 
+    threading.Thread(
+        target=procesar_lote_trading,
+        args=(instrumentos, '1h', '5d', 6), # Bajado temporalmente a 6 puntos para pruebas
+        daemon=True
+    ).start()
+
+    return jsonify({
+        'status': 'success',
+        'mensaje': '🚀 Escaneo manual iniciado. Revisa la terminal para ver el desglose punto por punto.',
+        'instrumentos': instrumentos
+    }), 200
+
+# --- TAREAS PROGRAMADAS (SCHEDULER) ---
 ALERTAS_ENVIADAS_CACHE = {}
 
 def tarea_escaneo_automatico_trading():
-  with app.app_context():
-    zona_ni = ZoneInfo('America/Managua')
-    ahora_dt = datetime.now(zona_ni)
+    with app.app_context():
+        zona_ni = ZoneInfo('America/Managua')
+        ahora_dt = datetime.now(zona_ni)
+        
+        intervalo, periodo, puntos_min = '30m', '5d', 6
+        instrumentos_a_procesar = []
 
-    # Corregido: periodo '5d' para datos de 30m
-    intervalo, periodo, puntos_min = '30m', '5d', 6
+        for ticker in DICCIONARIO_NOMBRES.keys():
+            ultimo_envio = ALERTAS_ENVIADAS_CACHE.get(ticker)
+            if not ultimo_envio or (ahora_dt - ultimo_envio).total_seconds() >= 900:
+                instrumentos_a_procesar.append(ticker)
+                ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
 
-    for ticker, nombre in DICCIONARIO_NOMBRES.items():
-      ultimo_envio = ALERTAS_ENVIADAS_CACHE.get(ticker)
-      if ultimo_envio and (ahora_dt - ultimo_envio).total_seconds() < 1800:
-        continue
-
-      orden = procesar_lote_trading(
-          ticker, intervalo, periodo, puntos_min, EMAIL_DESTINO_DEFAULT
-      )
-      if orden:
-        ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
+        if instrumentos_a_procesar:
+            procesar_lote_trading(instrumentos_a_procesar, intervalo, periodo, puntos_min)
 
 def enviar_reporte_estado_trading():
-  with app.app_context():
-    zona_ni = ZoneInfo('America/Managua')
-    hora_fmt = datetime.now(zona_ni).strftime('%I:%M %p (%d/%m)')
-    asunto = f'🟢 TRADING BOT OPERATIVO EN RENDER ({hora_fmt})'
-    mensaje = (
-        f'🟢 BOT OPERATIVO EN RENDER\n\nHora (Nicaragua): {hora_fmt}\nEl script'
-        ' de trading Trading_ADX_Pro_V3 se encuentra activo y analizando velas'
-        ' continuamente.'
-    )
-    enviar_email_smtp(asunto, mensaje, EMAIL_DESTINO_DEFAULT)
+    with app.app_context():
+        zona_ni = ZoneInfo('America/Managua')
+        hora_fmt = datetime.now(zona_ni).strftime('%I:%M %p (%d/%m)')
+        
+        mensaje = (
+            f"🟢 *TRADING BOT OPERATIVO EN RENDER*\n\n"
+            f"📍 *Hora (Nicaragua):* {hora_fmt}\n"
+            f"El script `Trading_ADX_Pro_V3` está activo y escaneando el mercado."
+        )
+        enviar_whatsapp_twilio(mensaje)
 
-
+# --- INICIALIZACIÓN DE BACKGROUND SCHEDULER ---
 executors = {'default': ThreadPoolExecutor(max_workers=10)}
 job_defaults = {'coalesce': True, 'max_instances': 1}
 
@@ -1621,126 +1549,41 @@ trading_scheduler = BackgroundScheduler(
     executors=executors,
     job_defaults=job_defaults,
     timezone=ZoneInfo('America/Managua'),
-    daemon=True,
+    daemon=True
 )
 
-
 def inicializar_scheduler():
-  if not trading_scheduler.running:
-    trading_scheduler.add_job(
-        func=procesar_mensajes_programados,
-        trigger='interval',
-        seconds=60,
-        id='job_mensajes_programados',
-        replace_existing=True,
-    )
+    if not trading_scheduler.running:
+        trading_scheduler.add_job(
+            func=procesar_mensajes_programados,
+            trigger='interval',
+            seconds=60,
+            id='job_mensajes_programados',
+            replace_existing=True
+        )
 
-    trading_scheduler.add_job(
-        func=tarea_escaneo_automatico_trading,
-        trigger='interval',
-        minutes=5,
-        id='job_trading_automatico',
-        replace_existing=True,
-    )
+        trading_scheduler.add_job(
+            func=tarea_escaneo_automatico_trading,
+            trigger='interval',
+            minutes=5,
+            id='job_trading_automatico',
+            replace_existing=True
+        )
 
-    trading_scheduler.add_job(
-        func=enviar_reporte_estado_trading,
-        trigger='cron',
-        hour='6-18',
-        minute=20,
-        timezone=ZoneInfo('America/Managua'),
-        id='job_status_heartbeat',
-        replace_existing=True,
-    )
+        trading_scheduler.add_job(
+            func=enviar_reporte_estado_trading,
+            trigger='cron',
+            hour='6-18',
+            minute=20,
+            timezone=ZoneInfo('America/Managua'),
+            id='job_status_heartbeat',
+            replace_existing=True
+        )
 
-    trading_scheduler.start()
-    print('🚀 Scheduler unificado iniciado con éxito en Render.')
+        trading_scheduler.start()
+        print('🚀 Scheduler unificado iniciado con éxito.')
 
-
-# Iniciar scheduler
 inicializar_scheduler()
-
-
-@app.route('/test_smtp_directo_render')
-def test_smtp_directo_render():
-  logs = ['--- INICIANDO TEST CON VARIABLES DE .ENV ---']
-
-  if not SMTP_PASSWORD:
-    return jsonify({
-        'diagnostico': ['❌ ERROR: La variable SMTP_PASSWORD no está definida.']
-    }), 500
-
-  old_getaddrinfo = socket.getaddrinfo
-
-  def new_getaddrinfo(*args, **kwargs):
-    responses = old_getaddrinfo(*args, **kwargs)
-    return [r for r in responses if r[0] == socket.AF_INET]
-
-  socket.getaddrinfo = new_getaddrinfo
-
-  msg = EmailMessage()
-  msg.set_content(
-      'Prueba de envío usando variables de entorno (.env).\nUsuario:'
-      f' {SMTP_USER}\nPuerto: {SMTP_PORT}'
-  )
-  msg['Subject'] = 'PRUEBA DE SISTEMA - CREDENCIALES .ENV OK'
-  msg['From'] = SMTP_USER
-  msg['To'] = EMAIL_DESTINO_DEFAULT
-
-  try:
-    logs.append(f'1. Conectando a {SMTP_SERVER}:{SMTP_PORT}...')
-
-    if SMTP_PORT == 465:
-      with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=25) as server:
-        logs.append('2. Autenticando vía SSL...')
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        logs.append('3. Enviando mensaje...')
-        server.send_message(msg)
-    else:
-      with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=25) as server:
-        logs.append('2. Iniciando STARTTLS...')
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        logs.append('3. Autenticando con usuario y token...')
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        logs.append('4. Enviando mensaje...')
-        server.send_message(msg)
-
-    logs.append(f'✅ TEST EXITOSO: Correo enviado a {EMAIL_DESTINO_DEFAULT}')
-    status = 200
-
-  except Exception as e:
-    logs.append(f'❌ ERROR CON CONFIGURACIÓN DE .ENV: {e}')
-    status = 500
-  finally:
-    socket.getaddrinfo = old_getaddrinfo
-
-  return jsonify({'diagnostico': logs}), status
-
-
-@app.route('/ejecutar_escaner_directo')
-def ejecutar_escaner_directo():
-  instrumentos = list(DICCIONARIO_NOMBRES.keys())
-
-  threading.Thread(
-      target=procesar_lote_trading,
-      args=(
-          instrumentos,
-          '1h',
-          '5d',
-          6,
-          EMAIL_DESTINO_DEFAULT,
-      ),
-      daemon=True,
-  ).start()
-
-  return jsonify({
-      'status': 'success',
-      'mensaje': '🚀 Escaneo manual de trading iniciado en segundo plano.',
-      'instrumentos': instrumentos,
-  }), 200
-
 
 if __name__ == '__main__':
   app.run(host='0.0.0.0', port=5000)
