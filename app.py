@@ -1304,7 +1304,6 @@ def eliminar_programacion(id_prog):
   flash('Programación eliminada.', 'info')
   return redirect(url_for('vista_mensajes'))
 
-
 # --- TRADING ---
 
 SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com').strip()
@@ -1346,65 +1345,27 @@ def procesar_lote_trading(
 
     if not tickers_validos:
       print('⚠️ No hay tickers válidos para escanear.')
-      return
+      return None
 
-    INTERVALOS_PERMITIDOS = [
-        '1m',
-        '2m',
-        '5m',
-        '15m',
-        '30m',
-        '60m',
-        '90m',
-        '1h',
-        '4h',
-        '1d',
-        '5d',
-        '1wk',
-        '1mo',
-        '3mo',
-    ]
-    intervalo_str = str(intervalo).strip().lower()
-
-    if intervalo_str not in INTERVALOS_PERMITIDOS:
-      intervalo_str = '1h'
-
-    PERIODOS_PERMITIDOS = [
-        '1d',
-        '5d',
-        '1mo',
-        '3mo',
-        '6mo',
-        '1y',
-        '2y',
-        '5y',
-        '10y',
-        'ytd',
-        'max',
-    ]
-    periodo_str = str(periodo).strip().lower()
-
-    if periodo_str not in PERIODOS_PERMITIDOS:
-      periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
-      periodo_str = periodo_map.get(intervalo_str, '5d')
-
+    # Descarga directa vía yfinance
     datos_mkt = yf.download(
         tickers=tickers_validos,
-        period=periodo_str,
-        interval=intervalo_str,
+        period=periodo,
+        interval=intervalo,
         group_by='ticker',
         progress=False,
-        auto_adjust=False,  # Se mantiene intacta la estructura original de columnas
+        auto_adjust=False,
         timeout=15,
     )
 
     if datos_mkt is None or datos_mkt.empty:
-      return
+      return None
+
+    ultima_orden = None
 
     for ticker in tickers_validos:
       nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
 
-      # Manejo seguro para un solo ticker o múltiples tickers
       if len(tickers_validos) > 1:
         if ticker not in datos_mkt:
           continue
@@ -1412,29 +1373,20 @@ def procesar_lote_trading(
       else:
         df = datos_mkt.copy()
 
-      # Corregir MultiIndex si persiste
       if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
-      # Soporte si 'Close' viene como 'Adj Close'
       if 'Close' not in df.columns and 'Adj Close' in df.columns:
         df['Close'] = df['Adj Close']
 
       df = df.ffill().dropna()
-
-      if (
-          df.empty
-          or 'Close' not in df.columns
-          or 'High' not in df.columns
-          or 'Low' not in df.columns
-      ):
-        continue
 
       if len(df) < 30:
         continue
 
       precio_actual = float(df['Close'].iloc[-1])
 
+      # 1. ADX Filtro principal (Tendencia)
       adx_serie = calcular_adx(df, period=14)
       if (
           adx_serie is None
@@ -1444,34 +1396,39 @@ def procesar_lote_trading(
         continue
 
       valor_adx_num = round(float(adx_serie.iloc[-1]), 2)
-      if valor_adx_num < 25:
+      if valor_adx_num < 15:
+        print(f'ℹ️ {nombre}: ADX ({valor_adx_num}) < 25. Omitido.')
         continue
 
-      puntos_long = 3
-      puntos_short = 3
+      # 2. Puntuación limpia de Estrategia
+      puntos_long = 0
+      puntos_short = 0
 
+      # Tendencia SMA 50
       sma50_serie = df['Close'].rolling(window=50).mean()
       if (
           sma50_serie is not None
           and not sma50_serie.empty
           and pd.notna(sma50_serie.iloc[-1])
       ):
-        sma50 = sma50_serie.iloc[-1]
+        sma50 = float(sma50_serie.iloc[-1])
         if precio_actual > sma50:
-          puntos_long += 2
+          puntos_long += 3
         else:
-          puntos_short += 2
+          puntos_short += 3
 
+      # Oscilador RSI
       rsi_serie = calcular_rsi(df['Close'], period=14)
       if (
           rsi_serie is not None
           and not rsi_serie.empty
           and pd.notna(rsi_serie.iloc[-1])
       ):
-        rsi = rsi_serie.iloc[-1]
-        if 40 < rsi < 60:
-          puntos_long += 2
-          puntos_short += 2
+        rsi = float(rsi_serie.iloc[-1])
+        if rsi > 50:
+          puntos_long += 3
+        elif rsi <= 50:
+          puntos_short += 3
 
       puntos_finales = max(puntos_long, puntos_short)
       accion = (
@@ -1487,11 +1444,18 @@ def procesar_lote_trading(
             'adx_valor': valor_adx_num,
             'accion': accion,
         }
-        enviar_alerta_trading_email(orden, email_destino, puntos_min)
+        ultima_orden = orden
+        enviar_alerta_trading_email(
+            orden, destino=email_destino, puntos_max=puntos_min
+        )
+
+    return ultima_orden
 
   except Exception as e:
     print(f'❌ Error procesando lote de trading: {e}')
+    return None
 
+# --- INDICADORES TÉCNICOS OPTIMIZADOS ---
 def calcular_rsi(series, period=14):
   delta = series.diff()
   gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -1499,37 +1463,19 @@ def calcular_rsi(series, period=14):
   rs = gain / loss
   return 100 - (100 / (1 + rs))
 
+
 def calcular_adx(df, period=14):
-  high = df['High']
-  low = df['Low']
-  close = df['Close']
+  """Calcula el ADX utilizando pandas_ta_classic de forma nativa y robusta."""
+  try:
+    adx_df = ta.adx(df['High'], df['Low'], df['Close'], length=period)
+    if adx_df is not None and not adx_df.empty:
+      # pandas_ta nombra la columna principal como 'ADX_14'
+      col_adx = [col for col in adx_df.columns if col.startswith('ADX_')][0]
+      return adx_df[col_adx]
+  except Exception as e:
+    print(f'⚠️ Error calculando ADX con pandas_ta: {e}')
 
-  tr1 = high - low
-  tr2 = (high - close.shift(1)).abs()
-  tr3 = (low - close.shift(1)).abs()
-  tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-  atr = tr.rolling(window=period).mean()
-
-  up_move = high - high.shift(1)
-  down_move = low.shift(1) - low
-
-  plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
-  minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
-
-  plus_di = (
-      100
-      * (pd.Series(plus_dm, index=df.index).rolling(window=period).mean() / atr)
-  )
-  minus_di = (
-      100
-      * (
-          pd.Series(minus_dm, index=df.index).rolling(window=period).mean()
-          / atr
-      )
-  )
-
-  dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di)
-  return dx.rolling(window=period).mean()
+  return None
 
 @app.route('/ejecutar_escaner_trading', methods=['GET', 'POST'])
 def ejecutar_escaner_trading():
@@ -1538,7 +1484,7 @@ def ejecutar_escaner_trading():
 
   seleccionados = request.form.getlist('instrumentos')
   intervalo = request.form.get('intervalo', '1h')
-  puntos_min = int(request.form.get('puntos_maximos', 6))
+  puntos_min = int(request.form.get('puntos_maximos', 2))
 
   email_ingresado = request.form.get('email_destino')
   email_destino = (
@@ -1563,6 +1509,7 @@ def ejecutar_escaner_trading():
   flash('🚀 Escaneo iniciado en segundo plano.', 'success')
   return redirect(url_for('vista_trading'))
 
+
 def enviar_email_smtp(asunto, cuerpo, destino=None):
   if not SMTP_USER or not SMTP_PASSWORD:
     print('❌ Error: Credenciales SMTP incompletas.')
@@ -1582,22 +1529,17 @@ def enviar_email_smtp(asunto, cuerpo, destino=None):
   msg['From'] = SMTP_USER
   msg['To'] = destinatario
 
-  port = int(os.getenv('SMTP_PORT', 465))
-
   try:
-    # 🔵 OPCIÓN 1: Puerto 465 -> Utiliza SMTP_SSL
-    if port == 465:
+    if SMTP_PORT == 465:
       with smtplib.SMTP_SSL(
-          SMTP_SERVER, port, timeout=30
-      ) as server:  # Timeout subido a 30s
+          SMTP_SERVER, SMTP_PORT, timeout=30
+      ) as server:
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.send_message(msg)
-
-    # 🟡 OPCIÓN 2: Puerto 587 -> Utiliza SMTP + starttls
     else:
       with smtplib.SMTP(
-          SMTP_SERVER, port, timeout=30
-      ) as server:  # Timeout subido a 30s
+          SMTP_SERVER, SMTP_PORT, timeout=30
+      ) as server:
         server.ehlo()
         server.starttls()
         server.ehlo()
@@ -1611,6 +1553,7 @@ def enviar_email_smtp(asunto, cuerpo, destino=None):
     print(f'❌ Error enviando Email por SMTP: {e}')
     return False
 
+
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
   cuerpo = (
@@ -1621,11 +1564,13 @@ def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   )
   return enviar_email_smtp(asunto, cuerpo, destino)
 
+
 @app.route('/trading')
 def vista_trading():
   if 'user' not in session:
     return redirect(url_for('login_page'))
   return render_template('trading.html', instrumentos=DICCIONARIO_NOMBRES)
+
 
 ALERTAS_ENVIADAS_CACHE = {}
 
@@ -1634,8 +1579,8 @@ def tarea_escaneo_automatico_trading():
     zona_ni = ZoneInfo('America/Managua')
     ahora_dt = datetime.now(zona_ni)
 
-    intervalo, periodo, puntos_min = '30m', '1mo', 6
-    alertas_enviadas = 0
+    # Corregido: periodo '5d' para datos de 30m
+    intervalo, periodo, puntos_min = '30m', '5d', 6
 
     for ticker, nombre in DICCIONARIO_NOMBRES.items():
       ultimo_envio = ALERTAS_ENVIADAS_CACHE.get(ticker)
@@ -1645,11 +1590,8 @@ def tarea_escaneo_automatico_trading():
       orden = procesar_lote_trading(
           ticker, intervalo, periodo, puntos_min, EMAIL_DESTINO_DEFAULT
       )
-      if orden and enviar_alerta_trading_email(
-          orden, EMAIL_DESTINO_DEFAULT, puntos_min
-      ):
+      if orden:
         ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
-        alertas_enviadas += 1
 
 def enviar_reporte_estado_trading():
   with app.app_context():
@@ -1663,6 +1605,7 @@ def enviar_reporte_estado_trading():
     )
     enviar_email_smtp(asunto, mensaje, EMAIL_DESTINO_DEFAULT)
 
+
 executors = {'default': ThreadPoolExecutor(max_workers=10)}
 job_defaults = {'coalesce': True, 'max_instances': 1}
 
@@ -1673,9 +1616,9 @@ trading_scheduler = BackgroundScheduler(
     daemon=True,
 )
 
+
 def inicializar_scheduler():
   if not trading_scheduler.running:
-    # 1. Procesar mensajes programados (cada 60 segundos)
     trading_scheduler.add_job(
         func=procesar_mensajes_programados,
         trigger='interval',
@@ -1684,7 +1627,6 @@ def inicializar_scheduler():
         replace_existing=True,
     )
 
-    # 2. Escaneo automático de trading (cada 5 minutos)
     trading_scheduler.add_job(
         func=tarea_escaneo_automatico_trading,
         trigger='interval',
@@ -1693,7 +1635,6 @@ def inicializar_scheduler():
         replace_existing=True,
     )
 
-    # 3. Reporte Heartbeat: cada hora entre 6:00 AM y 1:00 PM (Nicaragua)
     trading_scheduler.add_job(
         func=enviar_reporte_estado_trading,
         trigger='cron',
@@ -1707,76 +1648,73 @@ def inicializar_scheduler():
     trading_scheduler.start()
     print('🚀 Scheduler unificado iniciado con éxito en Render.')
 
-# Iniciar el scheduler explícitamente al cargar la app
+
+# Iniciar scheduler
 inicializar_scheduler()
 
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
-SMTP_USER = os.getenv("SMTP_USER", "osmanmelendez485@gmail.com")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "kydrbeernvpwftob")
-EMAIL_DESTINO_DEFAULT = os.getenv("EMAIL_DESTINO_DEFAULT", "osmanmelendez485@gmail.com")
 
-@app.route("/test_smtp_directo_render")
+@app.route('/test_smtp_directo_render')
 def test_smtp_directo_render():
-    logs = ["--- INICIANDO TEST CON VARIABLES DE .ENV ---"]
+  logs = ['--- INICIANDO TEST CON VARIABLES DE .ENV ---']
 
-    if not SMTP_PASSWORD:
-        return jsonify({"diagnostico": ["❌ ERROR: La variable SMTP_PASSWORD no está definida."]}), 500
+  if not SMTP_PASSWORD:
+    return jsonify({
+        'diagnostico': ['❌ ERROR: La variable SMTP_PASSWORD no está definida.']
+    }), 500
 
-    # 🔧 Parche para forzar resolución IPv4 en Render
-    old_getaddrinfo = socket.getaddrinfo
+  old_getaddrinfo = socket.getaddrinfo
 
-    def new_getaddrinfo(*args, **kwargs):
-        responses = old_getaddrinfo(*args, **kwargs)
-        return [r for r in responses if r[0] == socket.AF_INET]
+  def new_getaddrinfo(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    return [r for r in responses if r[0] == socket.AF_INET]
 
-    socket.getaddrinfo = new_getaddrinfo
+  socket.getaddrinfo = new_getaddrinfo
 
-    msg = EmailMessage()
-    msg.set_content(f"Prueba de envío usando variables de entorno (.env).\nUsuario: {SMTP_USER}\nPuerto: {SMTP_PORT}")
-    msg["Subject"] = "PRUEBA DE SISTEMA - CREDENCIALES .ENV OK"
-    msg["From"] = SMTP_USER
-    msg["To"] = EMAIL_DESTINO_DEFAULT
+  msg = EmailMessage()
+  msg.set_content(
+      'Prueba de envío usando variables de entorno (.env).\nUsuario:'
+      f' {SMTP_USER}\nPuerto: {SMTP_PORT}'
+  )
+  msg['Subject'] = 'PRUEBA DE SISTEMA - CREDENCIALES .ENV OK'
+  msg['From'] = SMTP_USER
+  msg['To'] = EMAIL_DESTINO_DEFAULT
 
-    try:
-        logs.append(f"1. Conectando a {SMTP_SERVER}:{SMTP_PORT}...")
-        
-        # Selección de protocolo según el puerto definido en tu .env
-        if SMTP_PORT == 465:
-            with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=25) as server:
-                logs.append("2. Autenticando vía SSL...")
-                server.login(SMTP_USER, SMTP_PASSWORD)
-                logs.append("3. Enviando mensaje...")
-                server.send_message(msg)
-        else:
-            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=25) as server:
-                logs.append("2. Iniciando STARTTLS...")
-                server.ehlo()
-                server.starttls()
-                server.ehlo()
-                logs.append("3. Autenticando con usuario y token...")
-                server.login(SMTP_USER, SMTP_PASSWORD)
-                logs.append("4. Enviando mensaje...")
-                server.send_message(msg)
+  try:
+    logs.append(f'1. Conectando a {SMTP_SERVER}:{SMTP_PORT}...')
 
-        logs.append(f"✅ TEST EXITOSO: Correo enviado a {EMAIL_DESTINO_DEFAULT}")
-        status = 200
+    if SMTP_PORT == 465:
+      with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=25) as server:
+        logs.append('2. Autenticando vía SSL...')
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        logs.append('3. Enviando mensaje...')
+        server.send_message(msg)
+    else:
+      with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=25) as server:
+        logs.append('2. Iniciando STARTTLS...')
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        logs.append('3. Autenticando con usuario y token...')
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        logs.append('4. Enviando mensaje...')
+        server.send_message(msg)
 
-    except Exception as e:
-        logs.append(f"❌ ERROR CON CONFIGURACIÓN DE .ENV: {e}")
-        status = 500
-    finally:
-        socket.getaddrinfo = old_getaddrinfo
+    logs.append(f'✅ TEST EXITOSO: Correo enviado a {EMAIL_DESTINO_DEFAULT}')
+    status = 200
 
-    return jsonify({"diagnostico": logs}), status
+  except Exception as e:
+    logs.append(f'❌ ERROR CON CONFIGURACIÓN DE .ENV: {e}')
+    status = 500
+  finally:
+    socket.getaddrinfo = old_getaddrinfo
+
+  return jsonify({'diagnostico': logs}), status
 
 
 @app.route('/ejecutar_escaner_directo')
 def ejecutar_escaner_directo():
-  # Toma todos los instrumentos de tu diccionario
   instrumentos = list(DICCIONARIO_NOMBRES.keys())
 
-  # Ejecuta procesar_lote_trading en segundo plano
   threading.Thread(
       target=procesar_lote_trading,
       args=(
@@ -1784,8 +1722,8 @@ def ejecutar_escaner_directo():
           '1h',
           '5d',
           6,
-          'osmanmelendez485@gmail.com',
-      ),  # Ajusta tus parámetros predeterminados
+          EMAIL_DESTINO_DEFAULT,
+      ),
       daemon=True,
   ).start()
 
