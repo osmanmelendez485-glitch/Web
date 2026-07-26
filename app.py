@@ -1510,62 +1510,57 @@ def ejecutar_escaner_trading():
   flash('🚀 Escaneo iniciado en segundo plano.', 'success')
   return redirect(url_for('vista_trading'))
 
-import os
-import smtplib
-import socket
-from email.message import EmailMessage
-
 
 def enviar_email_smtp(asunto, cuerpo, destino=None):
-  if not SMTP_USER or not SMTP_PASSWORD:
-    print('❌ Error: Credenciales SMTP de Brevo incompletas.')
-    return False
-
+  api_key = os.getenv('BREVO_API_KEY')
   destinatario = (
       destino.strip()
       if (destino and destino.strip())
-      else EMAIL_DESTINO_DEFAULT
+      else os.getenv('EMAIL_DESTINO_DEFAULT')
   )
+  remitente = os.getenv('SMTP_USER')
+
+  if not api_key:
+    print('❌ Error: BREVO_API_KEY no configurada en el entorno.')
+    return False
+
   if not destinatario:
     print('❌ Error: Sin correo de destino válido.')
     return False
 
-  # --- PARCHE IPv4 OBLIGATORIO PARA RENDER ---
-  old_getaddrinfo = socket.getaddrinfo
+  url = 'https://api.brevo.com/v3/smtp/email'
 
-  def new_getaddrinfo(*args, **kwargs):
-    responses = old_getaddrinfo(*args, **kwargs)
-    return [r for r in responses if r[0] == socket.AF_INET]
+  headers = {
+      'accept': 'application/json',
+      'api-key': api_key,
+      'content-type': 'application/json',
+  }
 
-  socket.getaddrinfo = new_getaddrinfo
-  # -------------------------------------------
-
-  msg = EmailMessage()
-  msg.set_content(cuerpo)
-  msg['Subject'] = asunto
-  msg['From'] = SMTP_USER
-  msg['To'] = destinatario
+  payload = {
+      'sender': {'name': 'Trading Bot', 'email': remitente},
+      'to': [{'email': destinatario}],
+      'subject': asunto,
+      'textContent': cuerpo,
+  }
 
   try:
-    # Conexión STARTTLS para Brevo en puerto 587 con forcing IPv4
-    with smtplib.SMTP(SMTP_SERVER, int(SMTP_PORT), timeout=20) as server:
-      server.ehlo()
-      server.starttls()
-      server.ehlo()
-      server.login(SMTP_USER, SMTP_PASSWORD)
-      server.send_message(msg)
+    response = requests.post(url, json=payload, headers=headers, timeout=12)
 
-    print(
-        f'✅ Email enviado exitosamente vía Brevo SMTP Relay a {destinatario}'
-    )
-    return True
+    if response.status_code in [200, 201]:
+      print(
+          f'✅ Email enviado exitosamente vía Brevo API HTTPS a {destinatario}'
+      )
+      return True
+    else:
+      print(
+          f'❌ Error enviando vía Brevo API ({response.status_code}):'
+          f' {response.text}'
+      )
+      return False
 
   except Exception as e:
-    print(f'❌ Error enviando Email por Brevo SMTP: {e}')
+    print(f'❌ Error de conexión al enviar vía Brevo API: {e}')
     return False
-  finally:
-    # Restaurar la configuración original de sockets
-    socket.getaddrinfo = old_getaddrinfo
 
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
