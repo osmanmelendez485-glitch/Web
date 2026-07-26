@@ -1509,64 +1509,54 @@ def ejecutar_escaner_trading():
   flash('🚀 Escaneo iniciado en segundo plano.', 'success')
   return redirect(url_for('vista_trading'))
 
-import socket  # Asegúrate de tener importado socket al inicio del archivo
-
-
 def enviar_email_smtp(asunto, cuerpo, destino=None):
-  if not SMTP_USER or not SMTP_PASSWORD:
-    print('❌ Error: Credenciales SMTP incompletas.')
-    return False
+    if not SMTP_USER or not SMTP_PASSWORD:
+        print("❌ Error: Credenciales SMTP incompletas.")
+        return False
 
-  destinatario = (
-      destino.strip()
-      if destino and destino.strip()
-      else EMAIL_DESTINO_DEFAULT
-  )
-  if not destinatario:
-    return False
+    destinatario = destino.strip() if (destino and destino.strip()) else EMAIL_DESTINO_DEFAULT
+    if not destinatario:
+        return False
 
-  # --- FORZAR RESOLUCIÓN IPv4 EN RENDER ---
-  old_getaddrinfo = socket.getaddrinfo
+    # --- PARCHE FORZADO IPv4 PARA RENDER ---
+    old_getaddrinfo = socket.getaddrinfo
+    def new_getaddrinfo(*args, **kwargs):
+        responses = old_getaddrinfo(*args, **kwargs)
+        return [r for r in responses if r[0] == socket.AF_INET]
+    socket.getaddrinfo = new_getaddrinfo
+    # ----------------------------------------
 
-  def new_getaddrinfo(*args, **kwargs):
-    responses = old_getaddrinfo(*args, **kwargs)
-    return [r for r in responses if r[0] == socket.AF_INET]
+    msg = EmailMessage()
+    msg.set_content(cuerpo)
+    msg['Subject'] = asunto
+    msg['From'] = SMTP_USER
+    msg['To'] = destinatario
 
-  socket.getaddrinfo = new_getaddrinfo
-  # ----------------------------------------
+    try:
+        # En Render usamos 587 con STARTTLS para evitar bloqueos
+        puerto = int(SMTP_PORT)
+        
+        if puerto == 465:
+            with smtplib.SMTP_SSL(SMTP_SERVER, puerto, timeout=15) as server:
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            # Puerto 587 (Recomendado para Render)
+            with smtplib.SMTP(SMTP_SERVER, puerto if puerto != 465 else 587, timeout=15) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
 
-  msg = EmailMessage()
-  msg.set_content(cuerpo)
-  msg['Subject'] = asunto
-  msg['From'] = SMTP_USER
-  msg['To'] = destinatario
+        print(f"✅ Email enviado exitosamente a {destinatario}")
+        return True
 
-  try:
-    if SMTP_PORT == 465:
-      with smtplib.SMTP_SSL(
-          SMTP_SERVER, SMTP_PORT, timeout=30
-      ) as server:
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.send_message(msg)
-    else:
-      with smtplib.SMTP(
-          SMTP_SERVER, SMTP_PORT, timeout=30
-      ) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.send_message(msg)
-
-    print(f'✅ Email enviado exitosamente a {destinatario}')
-    return True
-
-  except Exception as e:
-    print(f'❌ Error enviando Email por SMTP: {e}')
-    return False
-  finally:
-    # Restaurar la función socket original
-    socket.getaddrinfo = old_getaddrinfo
+    except Exception as e:
+        print(f"❌ Error enviando Email por SMTP: {e}")
+        return False
+    finally:
+        socket.getaddrinfo = old_getaddrinfo
 
 def enviar_alerta_trading_email(orden, destino=None, puntos_max=6):
   asunto = f"🚀 Alerta Trading: {orden['nombre']} ({orden['accion']})"
