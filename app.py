@@ -1588,7 +1588,7 @@ def inicializar_scheduler():
         trading_scheduler.add_job(
             func=procesar_mensajes_programados,
             trigger='interval',
-            seconds=60,
+            seconds=600,
             id='job_mensajes_programados',
             replace_existing=True
         )
