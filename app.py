@@ -1596,7 +1596,7 @@ def inicializar_scheduler():
         trading_scheduler.add_job(
             func=tarea_escaneo_automatico_trading,
             trigger='interval',
-            minutes=5,
+            minutes=30,
             id='job_trading_automatico',
             replace_existing=True
         )
@@ -1605,7 +1605,7 @@ def inicializar_scheduler():
             func=enviar_reporte_estado_trading,
             trigger='cron',
             hour='6-18',
-            minute=20,
+            minute=00,
             timezone=ZoneInfo('America/Managua'),
             id='job_status_heartbeat',
             replace_existing=True
