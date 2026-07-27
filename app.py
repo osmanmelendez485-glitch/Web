@@ -1553,7 +1553,7 @@ def tarea_escaneo_automatico_trading():
 
         for ticker in DICCIONARIO_NOMBRES.keys():
             ultimo_envio = ALERTAS_ENVIADAS_CACHE.get(ticker)
-            if not ultimo_envio or (ahora_dt - ultimo_envio).total_seconds() >= 900:
+            if not ultimo_envio or (ahora_dt - ultimo_envio).total_seconds() >= 1800:
                 instrumentos_a_procesar.append(ticker)
                 ALERTAS_ENVIADAS_CACHE[ticker] = ahora_dt
 
