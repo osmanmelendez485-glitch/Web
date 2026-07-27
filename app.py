@@ -1363,16 +1363,14 @@ def enviar_whatsapp_twilio(mensaje):
         print(f"❌ Error de conexión al enviar WhatsApp: {e}")
         return False
 
-    
-# --- FUNCIÓN DE ANÁLISIS INDIVIDUAL REFINADA PARA 5 MINUTOS ---
+# --- FUNCIÓN DE ANÁLISIS INDIVIDUAL POR TICKER ---
 def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
   nombre = DICCIONARIO_NOMBRES.get(ticker, ticker)
   try:
     df = yf.download(
         ticker, period=periodo, interval=intervalo, progress=False
     )
-    # Requerimos al menos 30 velas de 5m para dar estabilidad a la EMA/RSI/ADX
-    if df.empty or len(df) < 30:
+    if df.empty or len(df) < 14:
       return None
 
     if isinstance(df.columns, list) or getattr(df.columns, 'nlevels', 1) > 1:
@@ -1380,81 +1378,53 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
           col[0] if isinstance(col, tuple) else col for col in df.columns
       ]
 
-    # Indicadores técnicos
     df['ADX'] = calcular_adx(df)
     df['RSI'] = calcular_rsi(df['Close'])
-    df['EMA9'] = ta.ema(df['Close'], length=9)  # Media Móvil Rápida
 
-    # ⚠️ REGLA DE ORO EN 5M: Trabajar con la ÚLTIMA VELA CERRADA (-2), no con la viva (-1)
-    vela_cerrada = df.iloc[-2]
-    vela_anterior = df.iloc[-3]
+    ultima_vela = df.iloc[-1]
+    vela_anterior = df.iloc[-2]
 
-    precio_actual = round(float(vela_cerrada['Close']), 2)
+    precio_actual = round(float(ultima_vela['Close']), 2)
     precio_previo = round(float(vela_anterior['Close']), 2)
 
+    # Variación porcentual de la última vela
     variacion_pct = round(
         ((precio_actual - precio_previo) / precio_previo) * 100, 2
     )
-    eje_var = f'+{variacion_pct}%' if variacion_pct >= 0 else f'{variacion_pct}%'
+    eje_var = f"+{variacion_pct}%" if variacion_pct >= 0 else f"{variacion_pct}%"
 
     adx_val = (
-        round(float(vela_cerrada['ADX']), 2)
-        if 'ADX' in df.columns and not pd.isna(vela_cerrada['ADX'])
+        round(float(ultima_vela['ADX']), 2)
+        if 'ADX' in df.columns and not pd.isna(ultima_vela['ADX'])
         else 0.0
     )
     rsi_val = (
-        round(float(vela_cerrada['RSI']), 2)
-        if 'RSI' in df.columns and not pd.isna(vela_cerrada['RSI'])
+        round(float(ultima_vela['RSI']), 2)
+        if 'RSI' in df.columns and not pd.isna(ultima_vela['RSI'])
         else 50.0
     )
-    rsi_previo = (
-        round(float(vela_anterior['RSI']), 2)
-        if 'RSI' in df.columns and not pd.isna(vela_anterior['RSI'])
-        else 50.0
-    )
-    ema9_val = (
-        float(vela_cerrada['EMA9'])
-        if 'EMA9' in df.columns and not pd.isna(vela_cerrada['EMA9'])
-        else precio_actual
-    )
 
-    min_reciente = round(float(df['Low'].tail(12).min()), 2)  # Última hora (12 velas)
-    max_reciente = round(float(df['High'].tail(12).max()), 2)
+    # Rango reciente (Mínimo y Máximo del período evaluado)
+    min_reciente = round(float(df['Low'].min()), 2)
+    max_reciente = round(float(df['High'].max()), 2)
 
-    # -----------------------------------------------------------
-    # LÓGICA DE PUNTUACIÓN Y FILTROS M5 (MÁS CERTEROS)
-    # -----------------------------------------------------------
+    # Lógica de Puntuación y Acción
     puntos = 0
     accion = 'WAIT'
 
-    # 1. Filtro de ADX (Determina si estamos en rango o en tendencia)
-    # En 5m, ADX > 30 es fuerza extrema. No se compra contra-tendencia.
-    es_mercado_rango = adx_val < 25
-    es_tendencia_fuerte = adx_val >= 30
+    if adx_val >= 25:
+      puntos += 3
+    elif adx_val >= 15:
+      puntos += 1
 
-    if es_mercado_rango:
-      puntos += 2  # Favorece estrategias de sobrecompra/sobreventa en rangos
-
-    # 2. Confirmación de Giro de RSI (Cruce alcista del nivel 30)
-    rsi_giro_alcista = (rsi_previo <= 30) and (rsi_val > 30)
-    rsi_giro_bajista = (rsi_previo >= 70) and (rsi_val < 70)
-
-    # 3. Confirmación de Acción de Precio (Cierre por encima de EMA9)
-    precio_sobre_ema = precio_actual > ema9_val
-    precio_bajo_ema = precio_actual < ema9_val
-
-    # SEÑAL DE COMPRA
-    if rsi_giro_alcista and not es_tendencia_fuerte and precio_sobre_ema:
-      puntos += 4
-      accion = '🟢 COMPRA CONFIRMADA (Giro M5)'
-    elif rsi_val <= 30 and es_tendencia_fuerte:
-      # Penalización: Cuchillo cayendo (caída fuerte en M5)
-      accion = '⚠️ RIESGO: Caída libre (ADX Alto)'
-
-    # SEÑAL DE VENTA
-    elif rsi_giro_bajista and not es_tendencia_fuerte and precio_bajo_ema:
-      puntos += 4
-      accion = '🔴 VENTA CONFIRMADA (Giro M5)'
+    if rsi_val <= 30:
+      puntos += 3
+      accion = '🟢 COMPRA (Sobrevendido)'
+    elif rsi_val >= 70:
+      puntos += 3
+      accion = '🔴 VENTA (Sobrecomprado)'
+    else:
+      puntos += 1
 
     return {
         'ticker': ticker,
@@ -1471,7 +1441,7 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
   except Exception as e:
     print(f'⚠️ Error procesando datos para {ticker}: {e}')
     return None
-  
+
 # --- PROCESAMIENTO DE LOTE CON AUDITORÍA EN TERMINAL Y ENVÍO ÚNICO ---
 def procesar_lote_trading(instrumentos, intervalo, periodo, puntos_min, destino=None):
     if isinstance(instrumentos, str):
@@ -1560,7 +1530,7 @@ def ejecutar_escaner_directo():
 
     threading.Thread(
         target=procesar_lote_trading,
-        args=(instrumentos, '1h', '5d', 6), # Bajado temporalmente a 6 puntos para pruebas
+        args=(instrumentos, '5m', '1d', 6), # Bajado temporalmente a 6 puntos para pruebas
         daemon=True
     ).start()
 
@@ -1578,7 +1548,7 @@ def tarea_escaneo_automatico_trading():
         zona_ni = ZoneInfo('America/Managua')
         ahora_dt = datetime.now(zona_ni)
         
-        intervalo, periodo, puntos_min = '5m', '1d', 6 #ultimo cambio#
+        intervalo, periodo, puntos_min = '5m', '1d', 6
         instrumentos_a_procesar = []
 
         for ticker in DICCIONARIO_NOMBRES.keys():
@@ -1618,7 +1588,7 @@ def inicializar_scheduler():
         trading_scheduler.add_job(
             func=procesar_mensajes_programados,
             trigger='interval',
-            seconds=600,
+            seconds=60,
             id='job_mensajes_programados',
             replace_existing=True
         )
