@@ -1539,7 +1539,7 @@ def ejecutar_escaner_directo():
 
     threading.Thread(
         target=procesar_lote_trading,
-        args=(instrumentos, '5m', '1d', 6), # Bajado temporalmente a 6 puntos para pruebas
+        args=(instrumentos, '5m', '5d', 6), # Bajado temporalmente a 6 puntos para pruebas
         daemon=True
     ).start()
 
@@ -1557,7 +1557,7 @@ def tarea_escaneo_automatico_trading():
         zona_ni = ZoneInfo('America/Managua')
         ahora_dt = datetime.now(zona_ni)
         
-        intervalo, periodo, puntos_min = '5m', '1d', 6
+        intervalo, periodo, puntos_min = '5m', '5d', 6
         instrumentos_a_procesar = []
 
         for ticker in DICCIONARIO_NOMBRES.keys():
