@@ -1310,6 +1310,8 @@ DICCIONARIO_NOMBRES = {
     'CL=F': 'Petroleo WTI',
     'ES=F': 'S&P 500',
     'BTC-USD': 'BITCOIN',
+    'XAGUSD': 'Plata (Comercial)',
+    'XAUUSD': 'Oro (Comercial)'
 }
 
 
