@@ -1387,11 +1387,10 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
     precio_actual = round(float(ultima_vela['Close']), 2)
     precio_previo = round(float(vela_anterior['Close']), 2)
 
-    # Variación porcentual de la última vela
     variacion_pct = round(
         ((precio_actual - precio_previo) / precio_previo) * 100, 2
     )
-    eje_var = f"+{variacion_pct}%" if variacion_pct >= 0 else f"{variacion_pct}%"
+    eje_var = f'+{variacion_pct}%' if variacion_pct >= 0 else f'{variacion_pct}%'
 
     adx_val = (
         round(float(ultima_vela['ADX']), 2)
@@ -1404,27 +1403,29 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
         else 50.0
     )
 
-    # Rango reciente (Mínimo y Máximo del período evaluado)
     min_reciente = round(float(df['Low'].min()), 2)
     max_reciente = round(float(df['High'].max()), 2)
 
-    # Lógica de Puntuación y Acción
     puntos = 0
     accion = 'WAIT'
 
+    # --- 1. EVALUACIÓN DE FUERZA (ADX) ---
     if adx_val >= 25:
       puntos += 3
     elif adx_val >= 15:
       puntos += 1
 
-    if rsi_val <= 30:
+    # --- 2. RANGOS DELIMITADOS DE RSI ---
+    if 10.0 <= rsi_val <= 20.0:
       puntos += 3
-      accion = '🟢 COMPRA (Sobrevendido)'
-    elif rsi_val >= 70:
+      accion = '🟢 COMPRA (Zona Clave 10-20)'
+    elif 60.0 <= rsi_val <= 70.0:
       puntos += 3
-      accion = '🔴 VENTA (Sobrecomprado)'
+      accion = '🔴 VENTA (Zona Clave 60-70)'
     else:
-      puntos += 1
+      # Si el RSI está fuera de las ventanas útiles (<10, 20-60, o >70)
+      # se asigna 0 puntos adicionales para descartar la oportunidad.
+      puntos += 0
 
     return {
         'ticker': ticker,
@@ -1441,7 +1442,7 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
   except Exception as e:
     print(f'⚠️ Error procesando datos para {ticker}: {e}')
     return None
-
+    
 # --- PROCESAMIENTO DE LOTE CON AUDITORÍA EN TERMINAL Y ENVÍO ÚNICO ---
 def procesar_lote_trading(instrumentos, intervalo, periodo, puntos_min, destino=None):
     if isinstance(instrumentos, str):
