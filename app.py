@@ -1412,10 +1412,11 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
     accion = 'WAIT'
 
     # --- 1. EVALUACIÓN DE FUERZA (ADX) ---
-    if adx_val >= 25:
+    if 25.0 <= adx_val <= 50.0:
       puntos += 3
-    elif adx_val >= 15:
-      puntos += 1
+    else:
+      # Si el ADX es < 25 (muy débil) o > 50 (tendencia agotada), asigna 0 puntos
+      puntos += 0
 
     # --- 2. RANGOS DELIMITADOS DE RSI ---
     if 10.0 <= rsi_val <= 20.0:
