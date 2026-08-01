@@ -1508,7 +1508,7 @@ def ejecutar_escaner_trading():
         return redirect(url_for('login_page'))
 
     seleccionados = request.form.getlist('instrumentos')
-    intervalo = request.form.get('intervalo', '1h')
+    intervalo = request.form.get('intervalo', '5m')
     puntos_min = int(request.form.get('puntos_maximos', 6))
 
     if not seleccionados:
@@ -1516,7 +1516,7 @@ def ejecutar_escaner_trading():
         return redirect(url_for('vista_trading'))
 
     periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
-    periodo = periodo_map.get(intervalo, '5d')
+    periodo = periodo_map.get(intervalo, '1d')
 
     threading.Thread(
         target=procesar_lote_trading,
