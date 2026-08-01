@@ -1399,9 +1399,14 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
         if 'ADX' in df.columns and not pd.isna(ultima_vela['ADX'])
         else 0.0
     )
-    rsi_val = (
+    rsi_actual = (
         round(float(ultima_vela['RSI']), 2)
         if 'RSI' in df.columns and not pd.isna(ultima_vela['RSI'])
+        else 50.0
+    )
+    rsi_previo = (
+        round(float(vela_anterior['RSI']), 2)
+        if 'RSI' in df.columns and not pd.isna(vela_anterior['RSI'])
         else 50.0
     )
 
@@ -1411,23 +1416,23 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
     puntos = 0
     accion = 'WAIT'
 
-    # --- 1. EVALUACIÓN DE FUERZA (ADX) ---
+    # --- 1. EVALUACIÓN DE FUERZA DELIMITADA (ADX 25 - 50) ---
     if 25.0 <= adx_val <= 50.0:
       puntos += 3
-    else:
-      # Si el ADX es < 25 (muy débil) o > 50 (tendencia agotada), asigna 0 puntos
-      puntos += 0
 
-    # --- 2. RANGOS DELIMITADOS DE RSI ---
-    if 10.0 <= rsi_val <= 20.0:
+    # --- 2. CONFIRMACIÓN DE CAMBIO DE DIRECCIÓN (GIRO DE RSI) ---
+
+    # 🟢 COMPRA: RSI previo estuvo en zona de oportunidad (<=20) Y el precio/RSI ya comenzó a subir
+    if (rsi_previo <= 20.0) and (rsi_actual > rsi_previo):
       puntos += 3
-      accion = '🟢 COMPRA (Zona Clave 10-20)'
-    elif 60.0 <= rsi_val <= 70.0:
+      accion = f'🟢 COMPRA CONFIRMADA (Giro RSI: {rsi_previo} ↗️ {rsi_actual})'
+
+    # 🔴 VENTA: RSI previo estuvo en zona de oportunidad (>=60) Y el precio/RSI ya comenzó a bajar
+    elif (rsi_previo >= 60.0) and (rsi_actual < rsi_previo):
       puntos += 3
-      accion = '🔴 VENTA (Zona Clave 60-70)'
+      accion = f'🔴 VENTA CONFIRMADA (Giro RSI: {rsi_previo} ↘️ {rsi_actual})'
+
     else:
-      # Si el RSI está fuera de las ventanas útiles (<10, 20-60, o >70)
-      # se asigna 0 puntos adicionales para descartar la oportunidad.
       puntos += 0
 
     return {
@@ -1436,7 +1441,7 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
         'precio': precio_actual,
         'variacion': eje_var,
         'adx_valor': adx_val,
-        'rsi_valor': rsi_val,
+        'rsi_valor': rsi_actual,
         'min_reciente': min_reciente,
         'max_reciente': max_reciente,
         'puntos': puntos,
