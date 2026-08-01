@@ -1516,7 +1516,7 @@ def ejecutar_escaner_trading():
         return redirect(url_for('vista_trading'))
 
     periodo_map = {'5m': '5d', '15m': '1mo', '1h': '5d', '1d': '2y'}
-    periodo = periodo_map.get(intervalo, '1d')
+    periodo = periodo_map.get(intervalo, '5d')
 
     threading.Thread(
         target=procesar_lote_trading,
