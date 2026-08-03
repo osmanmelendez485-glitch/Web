@@ -1410,6 +1410,12 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
         else 50.0
     )
 
+    hora_evento = (
+        ultima_vela.name.strftime('%H:%M:%S')
+        if hasattr(ultima_vela.name, 'strftime')
+        else 'N/A'
+    )
+    
     min_reciente = round(float(df['Low'].min()), 2)
     max_reciente = round(float(df['High'].max()), 2)
 
@@ -1446,6 +1452,7 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
         'max_reciente': max_reciente,
         'puntos': puntos,
         'accion': accion,
+        'hora': hora_evento,
     }
   except Exception as e:
     print(f'⚠️ Error procesando datos para {ticker}: {e}')
