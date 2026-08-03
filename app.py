@@ -1415,7 +1415,7 @@ def analizar_ticker_individual(ticker, intervalo, periodo, puntos_min):
         if hasattr(ultima_vela.name, 'strftime')
         else 'N/A'
     )
-    
+
     min_reciente = round(float(df['Low'].min()), 2)
     max_reciente = round(float(df['High'].max()), 2)
 
@@ -1485,6 +1485,7 @@ def procesar_lote_trading(instrumentos, intervalo, periodo, puntos_min, destino=
                 linea = (
                     f"🚀 *{orden['nombre']}* (`{orden['ticker']}`)\n"
                     f"   • *Acción:* {orden['accion']}\n"
+                    f"   • *Hora:* 🕒 {orden['hora']}\n"
                     f"   • *Precio:* ${orden['precio']} ({orden['variacion']})\n"
                     f"   • *ADX:* {orden['adx_valor']} 🔥 | *RSI:* {orden['rsi_valor']}\n"
                     f"   • *Rango:* Mín ${orden['min_reciente']} | Máx ${orden['max_reciente']}\n"
